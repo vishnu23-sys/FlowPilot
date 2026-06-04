@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
@@ -30,6 +31,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/"        element={<Landing />} />
           <Route path="/login"   element={<Login />} />
           <Route path="/signup"  element={<Signup />} />
           <Route path="/dashboard"     element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -39,7 +41,7 @@ function App() {
           <Route path="/analytics"     element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/goals"         element={<ProtectedRoute><Goals /></ProtectedRoute>} />
           <Route path="/settings"      element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
       <Toaster position="bottom-right" toastOptions={TOAST_STYLE} />
