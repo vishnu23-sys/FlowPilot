@@ -2,7 +2,8 @@ from datetime import date, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import User, Expense
+from sqlalchemy import func
+from models import User, Expense, Income
 from utils import ApiError, add_months, effective_income, month_bounds
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api')
@@ -76,7 +77,13 @@ def get_analytics():
 
     savings_trend = []
     if range_param != 'weekly':
-        for (label, p_start, _), point in zip(periods, trend):
+        # Months before the user's first recorded activity would show the expected income as pure
+        # savings, so the series starts at their first expense or income entry.
+        firsts = [db.session.query(func.min(m.date)).filter(m.user_id == user_id).scalar() for m in (Expense, Income)]
+        first_activity = min((d for d in firsts if d), default=None)
+        for (label, p_start, p_end), point in zip(periods, trend):
+            if first_activity is None or p_end < first_activity:
+                continue
             income = effective_income(user, p_start)
             if income is None:
                 continue

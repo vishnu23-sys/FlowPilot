@@ -131,3 +131,12 @@ def test_derived_endpoints_work_on_portable_sql(auth):
     monthly = auth.get('/api/analytics?range=monthly').get_json()
     assert monthly['savings_trend'][-1]['income'] == 4000
     assert {c['category'] for c in monthly['comparison']} == {'Food', 'Travel'}
+
+
+def test_savings_trend_starts_at_first_activity(auth):
+    auth.put('/api/profile', json={'monthly_income': 1000})
+    add_expense(auth, 100, on=LAST_MONTH)
+    trend = auth.get('/api/analytics?range=monthly').get_json()['savings_trend']
+    assert [p['period'] for p in trend] == [
+        add_months(TODAY, -1).strftime('%b %Y'), TODAY.strftime('%b %Y'),
+    ]
