@@ -1,8 +1,8 @@
 # FlowPilot
 
-**Personal finance management — built for clarity, not complexity.**
+**Personal finance, without the noise.**
 
-FlowPilot is a full-stack personal finance web application that helps you track expenses, manage debts and subscriptions, and understand your financial health through rule-based insights and savings predictions. It features a premium dark glassmorphism UI, JWT-based authentication, and a RESTful Flask API backed by PostgreSQL.
+FlowPilot is a full-stack personal finance app. It tracks spending and income, keeps budgets per category, follows subscriptions and debts, and saves toward goals. Rule-based insights and a health score then explain what changed this month. React and Vite on the front end, a Flask REST API with PostgreSQL behind it.
 
 ---
 
@@ -12,95 +12,85 @@ FlowPilot is a full-stack personal finance web application that helps you track 
 
 ![Dashboard](screenshots/dashboard.png)
 ![Expenses](screenshots/expenses.png)
-![Analytics](screenshots/analytics.png)
-![Goals & Predictions](screenshots/goals.png)
-![Settings](screenshots/settings.png)
+![Subscriptions](screenshots/subscriptions.png)
+![Goals](screenshots/goals.png)
 
 ---
 
 ## Features
 
-- **Authentication** — JWT-based register/login; passwords hashed with bcrypt; persistent sessions via localStorage.
-- **Expense tracking** — Full CRUD with category, date, payment method, description, and recurring flag. Ten supported categories (Food, Transport, Shopping, Entertainment, Bills, Health, Education, Travel, Investments, Others).
-- **Dashboard** — Monthly spend totals, budget-remaining card, spending-by-category donut chart (Recharts), recent transactions, financial health score gauge, and rule-based insight cards. Count-up animations on all monetary stat cards.
-- **Financial health score** — Computed out of 100 from savings rate, debt ratio, subscription load, and spending consistency. Includes component breakdown bars and 2–3 personalised recommendations.
-- **Rule-based insights** — Automatic observations derived from the user's own data: top category growth, weekend vs. weekday patterns, subscription-to-expense ratio, largest single spend, and more. No external AI API required.
-- **Analytics page** — Spending-by-category pie chart, monthly spending trend line chart, and savings trend line chart. Filterable by weekly / monthly / yearly range.
-- **Goals & Predictions** — Simulate reduced spending, increased savings, or cancelling a subscription with sliders; projects 12-month savings trajectory and debt-payoff timeline as area charts.
-- **Debts & Split tracking** — Track money owed to you and money you owe, with settle/unsettle toggle. Unsettled totals shown as stat cards.
-- **Subscription tracker** — Log recurring bills with monthly/yearly billing cycles, next-renewal dates, and active/inactive status. Stat cards for monthly cost, yearly cost, and total annual equivalent. Upcoming renewals (next 30 days) highlighted with urgency colour coding.
-- **Settings / Profile** — Edit name, monthly income (unlocks health score and predictions), and preferred currency (USD, EUR, GBP, INR, AUD, CAD, SGD, AED). Change email and password (password strength enforced: 8+ chars, uppercase, special character).
-- **Premium dark UI** — Glassmorphism cards, blue/purple gradient accents, Framer Motion page transitions and stagger animations, animated sidebar, responsive mobile layout with hamburger drawer.
-- **UX polish** — Toast notifications (react-hot-toast) for all create/update/delete/save actions; glassmorphism confirm modal before any delete; friendly empty states with call-to-action prompts; currency symbol display (₹, $, £, €, etc.) across all pages.
+- **Dashboard.** Spent this month (against the same point last month), left to spend, and a health score, plus quick actions, a running spend curve with week, month and year views, a "needs attention" list, recent transactions, category split, budgets, the health breakdown and insights.
+- **Expenses.** Search, category filter, date presets and sort, all kept in the URL. Rows are grouped by day with subtotals. You can select several rows to delete in bulk, every delete can be undone for five seconds, and clicking a row opens it for editing.
+- **Income.** Log salary, freelance work, refunds and other income. Logged income replaces the expected monthly income for that month everywhere it's used: health score, insights, analytics and projections.
+- **Budgets.** A monthly limit per category, with progress, a marker for today's point in the month, a month-end projection at the current pace, and a safe-to-spend-per-day figure.
+- **Subscriptions.** Monthly and yearly cost, a renewal calendar you can click to filter, upcoming renewals, and cards that open into a detail view with pause and resume.
+- **Debts.** "They owe me" and "I owe" views with a net balance, debts grouped by person, and settle or unsettle with one click.
+- **Goals.** Named savings goals with a target and optional date. FlowPilot works out the monthly amount needed and keeps a contribution history. The "What if" simulator projects 12 months of savings and debt payoff.
+- **Analytics.** Week, 6-month and year ranges, stacked category trends, a comparison against the previous period, and income against spending.
+- **Settings.** Profile, expected income and currency; light, dark or system theme; lime, vermilion or teal accent; default sidebar state; reduced motion; password change with a strength meter.
+
+### Design and interaction
+
+- **Look.** Serif headline figures (Instrument Serif) over a quiet UI in Geist and Geist Mono. Colour comes from the data: each category has a fixed colour across pills and charts. The interface itself uses neutrals plus one accent.
+- **Themes.** Dark and paper-light themes built from one set of CSS variable tokens. Switching theme plays a circular reveal from the toggle.
+- **Motion.** Page transitions follow the direction of travel through the sidebar. Toggles have sliding indicators. Shared-element morphs take an expense row into its edit sheet and a subscription card into its detail view. Numbers roll digit by digit, and charts tween between ranges. Everything falls back to simple fades when reduced motion is on.
+- **Keyboard.** `Ctrl K` opens the command palette (pages, actions, expense search). `N` adds an expense from anywhere, `Ctrl B` collapses the sidebar to icons, `G` then a letter jumps to a section, and `?` lists every shortcut.
 
 ---
 
-## Tech Stack
+## Tech stack
 
 ### Frontend
-| Package | Version | Purpose |
-|---|---|---|
-| React | 18.2 | UI framework |
-| Vite | 5.0 | Build tool and dev server |
-| Tailwind CSS | 3.3 | Utility-first styling |
-| Framer Motion | 12.40 | Animations and page transitions |
-| Recharts | 3.8 | Charts (pie, line, area) |
-| Axios | 1.6 | HTTP client with JWT interceptor |
-| React Router DOM | 7.16 | Client-side routing and protected routes |
-| react-hot-toast | 2.6 | Toast notifications |
-| lucide-react | 1.17 | Icon set |
+| Package | Purpose |
+|---|---|
+| React 18 + Vite 5 | UI and build |
+| Tailwind CSS 3 | Styling, mapped to CSS-variable design tokens |
+| Framer Motion | Page, layout and shared-element animation |
+| TanStack Query | Server state, caching, invalidation, optimistic deletes |
+| Radix UI primitives | Accessible dialog, menu, popover, tooltip, checkbox, switch, slider |
+| cmdk | Command palette |
+| Recharts | Charts |
+| React Router 7 | Routing with a persistent app shell |
+| @fontsource | Self-hosted Instrument Serif, Geist and Geist Mono |
+| Vitest + Testing Library, Playwright | Unit and end-to-end tests |
 
 ### Backend
-| Package | Version | Purpose |
-|---|---|---|
-| Flask | 3.0 | Web framework |
-| Flask-SQLAlchemy | 3.1 | ORM |
-| Flask-JWT-Extended | 4.6 | JWT authentication |
-| Flask-Bcrypt | 1.0 | Password hashing |
-| Flask-CORS | 4.0 | Cross-origin request handling |
-| psycopg (psycopg3) | ≥ 3.1 | PostgreSQL driver (binary wheel, Python 3.14 compatible) |
-| SQLAlchemy | ≥ 2.0 | SQL toolkit |
-| python-dotenv | 1.0 | Environment variable loading |
-
-### Database
-- **PostgreSQL** — via psycopg3 using the `postgresql+psycopg://` SQLAlchemy dialect.
+| Package | Purpose |
+|---|---|
+| Flask 3 | Web framework |
+| Flask-SQLAlchemy / SQLAlchemy 2 | ORM |
+| Flask-JWT-Extended | JWT auth (7-day tokens by default) |
+| Flask-Bcrypt | Password hashing |
+| Flask-CORS | Cross-origin requests |
+| psycopg 3 | PostgreSQL driver |
+| gunicorn | Production server |
+| pytest | Tests (run on in-memory SQLite) |
 
 ---
 
-## Local Setup
+## Local setup
 
 ### Prerequisites
 
-- **Node.js** v18 or later (includes npm)
-- **Python 3.14** (psycopg3 has a pre-built binary wheel for 3.14 — do **not** use psycopg2)
-- **PostgreSQL** running locally with a database named `flowpilot`
+- **Node.js** 18 or later
+- **Python 3.14** (psycopg3 ships a binary wheel for 3.14; don't use psycopg2)
+- **PostgreSQL** with a database named `flowpilot`
 
-Create the database if you haven't yet:
 ```sql
 CREATE DATABASE flowpilot;
 ```
 
----
-
 ### Backend
-
-Open a terminal in the project root.
 
 ```powershell
 cd backend
-
-# Create and activate a virtual environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create your .env file from the example
+pip install -r requirements-dev.txt
 copy .env.example .env
 ```
 
-Edit `backend/.env` and fill in your values:
+Edit `backend/.env`:
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:yourpassword@localhost:5432/flowpilot
@@ -108,11 +98,12 @@ FLASK_ENV=development
 FLASK_APP=app.py
 CORS_ORIGIN=http://localhost:5173
 JWT_SECRET_KEY=replace-with-a-long-random-string
+JWT_EXPIRES_DAYS=7
 ```
 
-> **Important — dialect:** The URL must use `postgresql+psycopg://` (psycopg3), not `postgresql://` (psycopg2). If your PostgreSQL password contains `@`, encode it as `%40`.
+> The URL must use the `postgresql+psycopg://` dialect. If your password contains `@`, encode it as `%40`.
 
-Start the backend (tables are created automatically on first run):
+Start the API (tables are created on first run):
 
 ```powershell
 python app.py
@@ -120,167 +111,111 @@ python app.py
 
 The API runs on **http://localhost:5000**.
 
----
+**Demo data (optional).** `python seed_demo.py` creates (or resets) a local demo account, `demo@flowpilot.test` with password `Demo!pass1`, filled with four months of expenses, income, subscriptions, debts, budgets and goals.
 
 ### Frontend
 
-Open a second terminal in the project root.
-
 ```powershell
 cd frontend
-
-# Install dependencies
 npm install
-
-# Create your .env file from the example
-copy .env.example .env
-```
-
-`frontend/.env` should contain:
-
-```env
-VITE_API_URL=http://localhost:5000
-```
-
-Start the dev server:
-
-```powershell
+copy .env.example .env   # VITE_API_URL=http://localhost:5000
 npm run dev
 ```
 
 The app runs on **http://localhost:5173**.
 
----
-
 ### Troubleshooting
 
-**PowerShell execution policy error** when running `.\venv\Scripts\Activate.ps1`:
+**PowerShell execution policy error** when activating the venv:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-Run this once, then retry the activation command.
+---
+
+## Tests
+
+| Command | What it covers |
+|---|---|
+| `cd backend && python -m pytest` | API validation, auth hardening, income, budgets, goals, attention, analytics, health score, predictions |
+| `cd frontend && npm test` | Formatting, expense filter/sort/grouping, URL filter state, password policy, hotkey guard, preferences, renewal schedules |
+| `cd frontend && npm run e2e` | Smoke test in a real browser: log in, `N` quick-add, search, delete with undo, theme and sidebar persistence, command palette. Needs both servers running and the demo seed. |
 
 ---
 
-## Environment Variables
+## Environment variables
 
 ### `backend/.env`
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | Yes | Full psycopg3 connection string. Must use `postgresql+psycopg://` dialect. |
-| `FLASK_ENV` | No | Set to `development` for debug mode and auto-reload. |
-| `FLASK_APP` | No | Entry point — set to `app.py`. |
-| `CORS_ORIGIN` | No | Allowed frontend origin. Defaults to `http://localhost:5173`. |
-| `JWT_SECRET_KEY` | Yes | Secret used to sign JWT tokens. Use a long random string in production. |
+| `DATABASE_URL` | Yes | psycopg3 connection string (`postgresql+psycopg://`). |
+| `JWT_SECRET_KEY` | Yes, outside development | Secret for signing tokens. The app refuses to start without it unless `FLASK_ENV=development`. Use 32+ random characters. |
+| `JWT_EXPIRES_DAYS` | No | Token lifetime in days. Defaults to 7. |
+| `CORS_ORIGIN` | No | Comma-separated list of allowed frontend origins. Defaults to `http://localhost:5173`. |
+| `FLASK_ENV` | No | `development` enables debug mode and the dev secret fallback. |
 
 ### `frontend/.env`
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_API_URL` | Yes | Base URL of the Flask backend. All Axios requests are prefixed with this value. |
+| `VITE_API_URL` | Yes | Base URL of the Flask API. |
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
-project/
-├── backend/
-│   ├── app.py                  # Flask app factory, blueprint registration, db.create_all()
-│   ├── extensions.py           # SQLAlchemy, Bcrypt, JWTManager instances (avoids circular imports)
-│   ├── models.py               # ORM models: User, Expense, Debt, Subscription
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── routes/
-│       ├── auth.py             # POST /api/auth/register, /login, GET /me
-│       ├── expenses.py         # CRUD /api/expenses + /summary
-│       ├── debts.py            # CRUD /api/debts + /summary
-│       ├── subscriptions.py    # CRUD /api/subscriptions + /summary
-│       ├── profile.py          # GET/PUT /api/profile, PUT /api/profile/password
-│       ├── insights.py         # GET /api/insights
-│       ├── health_score.py     # GET /api/health-score
-│       ├── analytics.py        # GET /api/analytics
-│       └── predictions.py      # GET /api/predictions
-│
-├── frontend/
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   ├── .env.example
-│   └── src/
-│       ├── App.jsx             # Router, protected routes, Toaster
-│       ├── main.jsx
-│       ├── index.css           # Tailwind directives, glass utility, skeleton animation
-│       ├── constants.js        # Categories, currency symbols, formatAmount helper
-│       ├── context/
-│       │   └── AuthContext.jsx # JWT + user state; login / logout / updateUser
-│       ├── hooks/
-│       │   └── useCountUp.js   # Animated number count-up hook
-│       ├── api/
-│       │   └── apiClient.js    # Axios instance with Bearer token interceptor
-│       ├── components/
-│       │   ├── AppLayout.jsx   # Sidebar + TopNavbar wrapper with page transitions
-│       │   ├── Sidebar.jsx     # Nav links, coming-soon placeholders, Settings footer
-│       │   ├── TopNavbar.jsx   # User dropdown (logout, settings placeholder)
-│       │   ├── ProtectedRoute.jsx
-│       │   └── ui/
-│       │       ├── Card.jsx        # Glassmorphism animated card
-│       │       ├── Button.jsx      # Primary / ghost / danger variants
-│       │       ├── Input.jsx       # Dark-styled Input and Select exports
-│       │       ├── StatCard.jsx    # Metric card with count-up animation
-│       │       ├── Skeleton.jsx    # Loading skeleton components
-│       │       ├── ConfirmModal.jsx # Delete confirmation dialog
-│       │       └── ScoreGauge.jsx  # SVG arc gauge for health score
-│       └── pages/
-│           ├── Login.jsx
-│           ├── Signup.jsx
-│           ├── Dashboard.jsx
-│           ├── Expenses.jsx
-│           ├── Debts.jsx
-│           ├── Subscriptions.jsx
-│           ├── Analytics.jsx
-│           ├── Goals.jsx           # Savings predictions and simulations
-│           └── Settings.jsx        # Profile and security tabs
-│
-└── README.md
+backend/
+├── app.py                 # App setup, JWT/CORS config, JSON error handlers, blueprints
+├── config.py              # JWT secret resolution
+├── utils.py               # Input parsing, month helpers, money formatting, effective_income()
+├── models.py              # User, Expense, Income, Debt, Subscription, Budget, SavingsGoal, GoalContribution
+├── seed_demo.py           # Local demo account
+├── routes/                # auth, expenses, income, budgets, goals, debts, subscriptions,
+│                          # profile, insights, health_score, analytics, predictions, attention
+└── tests/                 # pytest suite
+
+frontend/src/
+├── App.jsx                # Providers and routes (lazy-loaded pages inside one AppShell)
+├── styles/tokens.css      # Colour tokens per theme and accent
+├── lib/                   # format, categories, motion, preferences, hotkeys, sheets, undo, password
+├── api/                   # Axios client (401 → logout) and TanStack Query hooks
+├── components/
+│   ├── shell/             # AppShell, Sidebar, Topbar, CommandPalette, ShortcutsDialog, ErrorBoundary
+│   ├── ui/                # Button, inputs, Segmented, Panel, PageHeader, RollingNumber, overlays, progress
+│   ├── charts/            # Shared chart theme and tooltip
+│   └── brand/             # Logo, contour background, landing preview, auth layout
+├── features/              # Dashboard widgets, expense rows and filters, goal tabs, sheets (forms)
+└── pages/                 # One file per route
 ```
 
 ---
 
-## API Overview
+## API overview
 
-All routes except `/api/health`, `/api/auth/register`, and `/api/auth/login` require a `Authorization: Bearer <token>` header.
+All routes except `/api/health`, `/api/auth/register` and `/api/auth/login` need an `Authorization: Bearer <token>` header. Errors are always JSON: `{"error": "…"}`.
 
-| Group | Prefix | Endpoints |
-|---|---|---|
-| Health check | `/api/health` | `GET` — returns `{"status": "ok"}` |
-| Auth | `/api/auth` | `POST /register`, `POST /login`, `GET /me` |
-| Expenses | `/api/expenses` | `GET`, `POST`, `PUT /<id>`, `DELETE /<id>`, `GET /summary` |
-| Debts | `/api/debts` | `GET`, `POST`, `PUT /<id>`, `DELETE /<id>`, `GET /summary` |
-| Subscriptions | `/api/subscriptions` | `GET`, `POST`, `PUT /<id>`, `DELETE /<id>`, `GET /summary` |
-| Profile | `/api/profile` | `GET`, `PUT`, `PUT /password` |
-| Insights | `/api/insights` | `GET` — rule-based financial observations |
-| Health Score | `/api/health-score` | `GET` — score out of 100 with component breakdown |
-| Analytics | `/api/analytics` | `GET ?range=weekly\|monthly\|yearly` |
-| Predictions | `/api/predictions` | `GET ?reduce_spending_pct=&extra_savings=&cancel_subscription_id=` |
+| Group | Endpoints |
+|---|---|
+| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` |
+| Expenses | `GET/POST /api/expenses`, `PUT/DELETE /api/expenses/<id>`, `POST /api/expenses/bulk-delete`, `GET /api/expenses/summary` |
+| Income | `GET/POST /api/income`, `PUT/DELETE /api/income/<id>`, `GET /api/income/summary` |
+| Budgets | `GET /api/budgets`, `PUT/DELETE /api/budgets/<category>` |
+| Goals | `GET/POST /api/goals`, `PUT/DELETE /api/goals/<id>`, `POST /api/goals/<id>/contributions`, `DELETE /api/goals/<id>/contributions/<cid>` |
+| Debts | `GET/POST /api/debts`, `PUT/DELETE /api/debts/<id>`, `GET /api/debts/summary` |
+| Subscriptions | `GET/POST /api/subscriptions`, `PUT/DELETE /api/subscriptions/<id>`, `GET /api/subscriptions/summary` |
+| Profile | `GET/PUT /api/profile`, `PUT /api/profile/password` |
+| Derived | `GET /api/insights`, `GET /api/health-score`, `GET /api/attention`, `GET /api/analytics?range=weekly\|monthly\|yearly`, `GET /api/predictions` |
 
 ---
 
 ## Deployment
 
-> **Status: Coming soon.** The app is not yet deployed. The recommended target stack is:
-
-| Layer | Service |
-|---|---|
-| Frontend | [Vercel](https://vercel.com) or [Netlify](https://netlify.com) — run `npm run build`, deploy the `dist/` folder |
-| Backend | [Render](https://render.com) or [Railway](https://railway.app) — set environment variables via the dashboard |
-| Database | [Neon](https://neon.tech) or [Supabase](https://supabase.com) — both provide managed PostgreSQL with a free tier |
-
-When deploying, set `JWT_ACCESS_TOKEN_EXPIRES` to a `timedelta` (e.g. `timedelta(days=7)`) rather than `False`, and set `CORS_ORIGIN` to your production frontend URL.
+- **Frontend.** Vercel (see `frontend/vercel.json` for SPA rewrites). Set `VITE_API_URL` to the API's URL.
+- **Backend.** Run `gunicorn app:app`. Set `JWT_SECRET_KEY`, `DATABASE_URL`, and `CORS_ORIGIN` (comma-separate production and preview URLs).
+- **Database.** New tables are created automatically on startup. Existing tables aren't altered.
 
 ---
 
