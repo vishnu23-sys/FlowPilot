@@ -4,4 +4,4 @@ venv/
 *.env
 __pycache__/
 dist/
-.DS_Store
+.DS_Storepwd.txt
