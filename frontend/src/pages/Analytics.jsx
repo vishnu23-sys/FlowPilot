@@ -1,161 +1,193 @@
-import { useState, useEffect } from 'react'
-import {
-  ResponsiveContainer, PieChart, Pie, Cell,
-  LineChart, Line, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-} from 'recharts'
-import AppLayout from '../components/AppLayout'
-import Card from '../components/ui/Card'
-import { SkeletonBlock } from '../components/ui/Skeleton'
-import apiClient from '../api/apiClient'
-import { useAuth } from '../context/AuthContext'
-import { CATEGORY_COLORS } from '../constants'
+import { useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
+import { ResponsiveContainer, BarChart, Bar, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import Segmented from '../components/ui/Segmented'
+import RollingNumber from '../components/ui/RollingNumber'
+import { Skeleton } from '../components/ui/Skeleton'
+import { ErrorState } from '../components/ui/States'
+import { axisProps, gridProps, makeTooltip, AreaGradient, chartAnimation } from '../components/charts/chartTheme'
+import { useAnalytics } from '../api/queries'
+import { useCurrency } from '../context/AuthContext'
+import { CATEGORIES, categoryColor } from '../lib/categories'
+import { formatCompact, formatMoney, formatPercent } from '../lib/format'
+import { usePageEntrance } from '../lib/entrance'
+import { spring, staggerItem } from '../lib/motion'
 
-const RANGES = ['weekly', 'monthly', 'yearly']
+const RANGES = [
+  { value: 'weekly', label: 'Week', period: 'day', previous: 'the week before' },
+  { value: 'monthly', label: '6 months', period: 'month', previous: 'the 6 months before' },
+  { value: 'yearly', label: 'Year', period: 'month', previous: 'the year before' },
+]
 
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    backgroundColor: '#0c1325',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '10px',
-    color: '#f1f5f9',
-    fontSize: '12px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-  },
-  itemStyle: { color: '#f1f5f9' },
+function Change({ pct, invert = true }) {
+  if (pct == null) return <span className="text-muted">new</span>
+  if (Math.abs(pct) < 0.5) return <span className="inline-flex items-center gap-0.5 text-muted"><Minus size={12} aria-hidden="true" />flat</span>
+  const up = pct > 0
+  const bad = invert ? up : !up
+  const Icon = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <span className={`inline-flex items-center gap-0.5 num ${bad ? 'text-danger' : 'text-success'}`}>
+      <Icon size={12} aria-hidden="true" />{formatPercent(Math.abs(pct))}
+    </span>
+  )
 }
 
-const AXIS_STYLE = {
-  stroke: '#334155',
-  tick: { fill: '#475569', fontSize: 11 },
+function Hero({ data, range, currency }) {
+  const t = data.totals
+  const meta = RANGES.find((r) => r.value === range)
+  return (
+    <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+      <div className="p-5 md:p-6">
+        <p className="text-sm text-muted">Spent</p>
+        <p className="serif text-[52px] leading-none mt-2"><RollingNumber value={formatMoney(t.current, currency, { decimals: 0 })} /></p>
+        <p className="text-xs text-muted mt-3"><Change pct={t.change_pct} /> against {meta.previous}</p>
+      </div>
+      <div className="p-5 md:p-6">
+        <p className="text-sm text-muted">Average per {meta.period}</p>
+        <p className="serif text-[52px] leading-none mt-2"><RollingNumber value={formatMoney(t.average_per_period, currency, { decimals: 0 })} /></p>
+        <p className="text-xs text-muted mt-3">across <span className="num text-fg">{data.trend.length}</span> {meta.period}s</p>
+      </div>
+      <div className="p-5 md:p-6">
+        <p className="text-sm text-muted">Transactions</p>
+        <p className="serif text-[52px] leading-none mt-2"><RollingNumber value={String(t.transactions)} /></p>
+        <p className="text-xs text-muted mt-3">
+          {t.transactions ? <>about <span className="num text-fg">{formatMoney(t.current / t.transactions, currency)}</span> each</> : 'None in this range'}
+        </p>
+      </div>
+    </motion.div>
+  )
+}
+
+function StackedTrend({ data, currency }) {
+  const cats = CATEGORIES.map((c) => c.id).filter((id) => data.trend.some((p) => p.by_category[id]))
+  const rows = data.trend.map((p) => ({ period: p.period, ...Object.fromEntries(cats.map((c) => [c, p.by_category[c] || 0])) }))
+  const Tip = useMemo(() => makeTooltip({ format: (v) => formatMoney(v, currency) }), [currency])
+  return (
+    <Panel className="lg:col-span-2" title="Spending by category over time">
+      <div className="h-[280px] -ml-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid {...gridProps} />
+            <XAxis dataKey="period" {...axisProps} tickFormatter={(p) => p.split(' ')[0]} interval="preserveStartEnd" minTickGap={12} />
+            <YAxis {...axisProps} width={52} tickFormatter={(v) => formatCompact(v, currency)} />
+            <Tooltip content={<Tip />} cursor={{ fill: 'rgb(var(--fg) / 0.04)' }} />
+            {cats.map((c, i) => (
+              <Bar key={c} dataKey={c} stackId="s" fill={categoryColor(c)} maxBarSize={36}
+                radius={i === cats.length - 1 ? [4, 4, 0, 0] : 0} {...chartAnimation} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-xs text-muted">
+        {cats.map((c) => (
+          <span key={c} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: categoryColor(c) }} aria-hidden="true" />{c}
+          </span>
+        ))}
+      </div>
+    </Panel>
+  )
+}
+
+function Comparison({ data, range, currency }) {
+  const rows = data.comparison.slice(0, 8)
+  const max = Math.max(...rows.map((r) => Math.max(r.current, r.previous)), 1)
+  return (
+    <Panel title={`Against ${RANGES.find((r) => r.value === range).previous}`}>
+      {!rows.length ? <p className="text-sm text-muted py-6">Nothing to compare yet.</p> : (
+        <ul className="space-y-3 pt-1">
+          {rows.map((r) => (
+            <li key={r.category}>
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColor(r.category) }} aria-hidden="true" />{r.category}
+                </span>
+                <span className="flex items-center gap-3 text-xs">
+                  <Change pct={r.change_pct} />
+                  <span className="num text-fg w-20 text-right">{formatMoney(r.current, currency)}</span>
+                </span>
+              </div>
+              <div className="relative h-1.5 rounded-full bg-fg/[0.06]">
+                <motion.span className="absolute inset-y-0 left-0 rounded-full bg-fg/20" initial={false}
+                  animate={{ width: `${(r.previous / max) * 100}%` }} transition={spring.bar} />
+                <motion.span className="absolute inset-y-0 left-0 rounded-full" style={{ backgroundColor: categoryColor(r.category) }} initial={false}
+                  animate={{ width: `${(r.current / max) * 100}%`, opacity: 0.9 }} transition={spring.bar} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-2xs text-faint mt-4">Colour is this period; grey is the one before.</p>
+    </Panel>
+  )
+}
+
+function Savings({ data, currency }) {
+  const Tip = useMemo(() => makeTooltip({
+    format: (v) => formatMoney(v, currency),
+    labels: { income: 'Income', expenses: 'Spending', savings: 'Kept' },
+  }), [currency])
+  if (!data.savings_trend.length) {
+    return (
+      <Panel className="lg:col-span-3" title="Income against spending">
+        <p className="text-sm text-muted py-6">Log income or set an expected amount to see what you keep each month.</p>
+      </Panel>
+    )
+  }
+  return (
+    <Panel className="lg:col-span-3" title="Income against spending">
+      <div className="h-[260px] -ml-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data.savings_trend} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <defs><AreaGradient id="kept-fill" color="rgb(var(--success))" from={0.2} /></defs>
+            <CartesianGrid {...gridProps} />
+            <XAxis dataKey="period" {...axisProps} tickFormatter={(p) => p.split(' ')[0]} />
+            <YAxis {...axisProps} width={56} tickFormatter={(v) => formatCompact(v, currency)} />
+            <Tooltip content={<Tip />} />
+            <Area type="monotone" dataKey="savings" stroke="rgb(var(--success))" fill="url(#kept-fill)" strokeWidth={1.5} {...chartAnimation} />
+            <Line type="monotone" dataKey="income" stroke="rgb(var(--accent))" strokeWidth={2} dot={false} {...chartAnimation} />
+            <Line type="monotone" dataKey="expenses" stroke="rgb(var(--fg) / 0.5)" strokeWidth={2} strokeDasharray="4 4" dot={false} {...chartAnimation} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex gap-4 mt-2 text-xs text-muted">
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-accent" aria-hidden="true" />Income</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 border-t-2 border-dashed border-fg/50" aria-hidden="true" />Spending</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-success/30" aria-hidden="true" />Kept</span>
+      </div>
+    </Panel>
+  )
 }
 
 export default function Analytics() {
-  const { user } = useAuth()
-  const currency = user?.currency || 'USD'
+  const currency = useCurrency()
+  const entrance = usePageEntrance()
   const [range, setRange] = useState('monthly')
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    apiClient.get(`/api/analytics?range=${range}`)
-      .then(r => setData(r.data))
-      .finally(() => setLoading(false))
-  }, [range])
-
-  const fmt = v => `${currency} ${Number(v).toFixed(0)}`
+  const query = useAnalytics(range)
+  const data = query.data
 
   return (
-    <AppLayout>
-      <div className="flex items-center justify-between mb-7">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Analytics</h1>
-          <p className="text-sm text-slate-600 mt-0.5">Visualize your spending patterns</p>
+    <motion.div {...entrance}>
+      <PageHeader
+        context="Patterns over time"
+        title="Analytics"
+        actions={<Segmented label="Range" options={RANGES} value={range} onChange={setRange} />}
+      />
+      {query.isError && !data ? <Panel><ErrorState error={query.error} onRetry={() => query.refetch()} /></Panel> : !data ? (
+        <div className="space-y-4"><Skeleton className="h-36" /><Skeleton className="h-80" /></div>
+      ) : (
+        <div className={`transition-opacity duration-200 ${query.isPlaceholderData ? 'opacity-60' : ''}`}>
+          <Hero data={data} range={data.range} currency={currency} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <StackedTrend data={data} currency={currency} />
+            <Comparison data={data} range={data.range} currency={currency} />
+            {data.range !== 'weekly' && <Savings data={data} currency={currency} />}
+          </div>
         </div>
-
-        {/* Range filter */}
-        <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
-          {RANGES.map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg capitalize transition-all ${
-                range === r
-                  ? 'bg-blue-600 text-white shadow-glow-blue'
-                  : 'text-slate-500 hover:text-slate-200'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-        {/* Category breakdown pie */}
-        {loading ? <SkeletonBlock className="h-72" /> : (
-          <Card delay={0.1}>
-            <p className="text-sm font-medium text-slate-400 mb-5">Spending by category</p>
-            {!data?.spending_by_category?.length ? (
-              <div className="h-52 flex items-center justify-center">
-                <p className="text-slate-600 text-sm">No data for this period</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={230}>
-                <PieChart>
-                  <Pie data={data.spending_by_category} dataKey="total" nameKey="category" cx="50%" cy="50%" innerRadius={55} outerRadius={85} strokeWidth={0} paddingAngle={2}>
-                    {data.spending_by_category.map((_, i) => <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [`${currency} ${Number(v).toFixed(2)}`, '']} />
-                  <Legend wrapperStyle={{ color: '#64748b', fontSize: '11px', paddingTop: '12px' }} iconType="circle" iconSize={7} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-        )}
-
-        {/* Spending trend line */}
-        {loading ? <SkeletonBlock className="h-72" /> : (
-          <Card delay={0.15}>
-            <p className="text-sm font-medium text-slate-400 mb-5">Spending trend</p>
-            {!data?.trend?.length ? (
-              <div className="h-52 flex items-center justify-center">
-                <p className="text-slate-600 text-sm">No data for this period</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={230}>
-                <LineChart data={data.trend} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="period" {...AXIS_STYLE} />
-                  <YAxis {...AXIS_STYLE} tickFormatter={v => `${currency}${v}`} width={60} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [fmt(v), 'Spent']} />
-                  <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-        )}
-      </div>
-
-      {/* Savings trend area */}
-      {data?.savings_trend?.length > 0 && !loading && (
-        <Card delay={0.2}>
-          <p className="text-sm font-medium text-slate-400 mb-5">Income vs expenses vs savings</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={data.savings_trend} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
-              <defs>
-                <linearGradient id="gradIncome" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradExpenses" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gradSavings" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="period" {...AXIS_STYLE} />
-              <YAxis {...AXIS_STYLE} tickFormatter={v => `${currency}${v}`} width={60} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v, name) => [fmt(v), name.charAt(0).toUpperCase() + name.slice(1)]} />
-              <Legend wrapperStyle={{ color: '#64748b', fontSize: '11px' }} />
-              <Area type="monotone" dataKey="income"   stroke="#3b82f6" fill="url(#gradIncome)"   strokeWidth={2} />
-              <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="url(#gradExpenses)" strokeWidth={2} />
-              <Area type="monotone" dataKey="savings"  stroke="#10b981" fill="url(#gradSavings)"  strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
       )}
-
-      {data?.savings_trend?.length === 0 && !loading && (
-        <Card delay={0.2} className="text-center py-6">
-          <p className="text-slate-500 text-sm">Set your monthly income in your profile to see the savings trend chart.</p>
-        </Card>
-      )}
-    </AppLayout>
+    </motion.div>
   )
 }

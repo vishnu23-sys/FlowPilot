@@ -1,112 +1,109 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import apiClient from '../api/apiClient'
+import apiClient, { errorMessage } from '../api/apiClient'
+import AuthLayout from '../components/brand/AuthLayout'
 import Button from '../components/ui/Button'
-import { Input, Select } from '../components/ui/Input'
+import { Field, Input, Select } from '../components/ui/Input'
+import { CURRENCIES, formatMoney } from '../lib/format'
+import { checkPassword } from '../lib/password'
+
+function guessCurrency() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  if (tz.startsWith('Asia/Kolkata') || tz.startsWith('Asia/Calcutta')) return 'INR'
+  if (tz.startsWith('Europe/London')) return 'GBP'
+  if (tz.startsWith('Europe/')) return 'EUR'
+  if (tz.startsWith('Australia/')) return 'AUD'
+  if (tz.startsWith('Asia/Singapore')) return 'SGD'
+  if (tz.startsWith('Asia/Dubai')) return 'AED'
+  return 'USD'
+}
 
 export default function Signup() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({
-    full_name: '',
-    email: '',
-    password: '',
-    monthly_income: '',
-    currency: 'USD',
-  })
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', currency: guessCurrency() })
+  const [touched, setTouched] = useState({})
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const pw = checkPassword(form.password)
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const errors = {
+    full_name: !form.full_name.trim() ? 'Enter your name' : null,
+    email: !/^\S+@\S+\.\S+$/.test(form.email) ? 'Enter a valid email' : null,
+    password: !pw.valid ? 'Meet each rule below' : null,
+  }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const set = (patch) => {
+    setForm((f) => ({ ...f, ...patch }))
     setError(null)
+  }
+  const blur = (k) => () => setTouched((t) => ({ ...t, [k]: true }))
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setTouched({ full_name: true, email: true, password: true })
+    if (Object.values(errors).some(Boolean)) return
     setLoading(true)
     try {
-      const payload = {
-        ...form,
-        monthly_income: form.monthly_income ? parseFloat(form.monthly_income) : null,
-      }
-      const res = await apiClient.post('/api/auth/register', payload)
+      const res = await apiClient.post('/api/auth/register', { ...form, full_name: form.full_name.trim() })
       login(res.data.token, res.data.user)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.error || 'Signup failed')
-    } finally {
+      setError(errorMessage(err, "Couldn't create your account. Try again."))
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#070c18] flex items-center justify-center relative overflow-hidden">
-      <div className="absolute top-0 right-1/3 w-[500px] h-[500px] bg-purple-600/[0.07] rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-blue-600/[0.07] rounded-full blur-3xl pointer-events-none" />
+    <AuthLayout>
+      <h1 className="serif text-[44px] leading-none">Create your account</h1>
+      <p className="mt-3 text-sm text-muted">Free, and it takes under a minute.</p>
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="glass rounded-2xl p-8 w-full max-w-sm mx-4 relative z-10"
-      >
-        <div className="flex items-center gap-2.5 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">FP</span>
-          </div>
-          <span className="font-semibold text-white text-lg tracking-tight">FlowPilot</span>
-        </div>
-
-        <h1 className="text-xl font-bold text-white mb-1">Create your account</h1>
-        <p className="text-sm text-slate-500 mb-6">Start tracking your finances today</p>
-
+      <AnimatePresence>
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl mb-4">
+          <motion.p role="alert" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="mt-6 overflow-hidden rounded-control border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">
             {error}
-          </div>
+          </motion.p>
         )}
+      </AnimatePresence>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Full name</label>
-            <Input name="full_name" type="text" placeholder="John Doe" value={form.full_name} onChange={handleChange} required />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Email</label>
-            <Input name="email" type="email" placeholder="you@example.com" value={form.email} onChange={handleChange} required />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Password</label>
-            <Input name="password" type="password" placeholder="••••••••" value={form.password} onChange={handleChange} required />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1.5">Monthly income</label>
-              <Input name="monthly_income" type="number" placeholder="Optional" value={form.monthly_income} onChange={handleChange} min="0" step="0.01" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1.5">Currency</label>
-              <Select name="currency" value={form.currency} onChange={handleChange}>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="INR">INR</option>
-              </Select>
-            </div>
-          </div>
-          <Button type="submit" disabled={loading} className="w-full mt-2">
-            {loading ? 'Creating account...' : 'Create account'}
-          </Button>
-        </form>
+      <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
+        <Field label="Name" error={touched.full_name && errors.full_name}>
+          {(a) => <Input {...a} autoComplete="name" autoFocus placeholder="Asha Rao" value={form.full_name}
+            onBlur={blur('full_name')} onChange={(e) => set({ full_name: e.target.value })} />}
+        </Field>
+        <Field label="Email" error={touched.email && errors.email}>
+          {(a) => <Input {...a} type="email" autoComplete="email" placeholder="you@example.com" value={form.email}
+            onBlur={blur('email')} onChange={(e) => set({ email: e.target.value })} />}
+        </Field>
+        <Field label="Password" error={touched.password && errors.password}>
+          {(a) => <Input {...a} type="password" autoComplete="new-password" value={form.password}
+            onBlur={blur('password')} onChange={(e) => set({ password: e.target.value })} />}
+        </Field>
+        <ul className="grid grid-cols-1 gap-1 -mt-1" aria-live="polite">
+          {pw.results.map((r) => (
+            <li key={r.id} className={`flex items-center gap-1.5 text-xs transition-colors ${r.ok ? 'text-success' : 'text-muted'}`}>
+              {r.ok ? <Check size={12} aria-hidden="true" /> : <X size={12} aria-hidden="true" />}{r.label}
+            </li>
+          ))}
+        </ul>
+        <Field label="Currency" hint="You can change this later in Settings.">
+          {(a) => (
+            <Select {...a} value={form.currency} onChange={(e) => set({ currency: e.target.value })}>
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}, {formatMoney(1234, c)}</option>)}
+            </Select>
+          )}
+        </Field>
+        <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full justify-center mt-2">Create account</Button>
+      </form>
 
-        <p className="text-sm text-slate-600 mt-6 text-center">
-          Already have an account?{' '}
-          <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
-            Sign in
-          </Link>
-        </p>
-      </motion.div>
-    </div>
+      <p className="mt-8 text-sm text-muted">
+        Already have an account? <Link to="/login" className="text-fg underline underline-offset-4 decoration-line-strong hover:decoration-accent">Log in</Link>
+      </p>
+    </AuthLayout>
   )
 }

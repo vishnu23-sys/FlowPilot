@@ -1,84 +1,68 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
-import apiClient from '../api/apiClient'
+import apiClient, { errorMessage } from '../api/apiClient'
+import AuthLayout from '../components/brand/AuthLayout'
 import Button from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { Field, Input } from '../components/ui/Input'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const set = (patch) => {
+    setForm((f) => ({ ...f, ...patch }))
     setError(null)
+  }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!form.email || !form.password) return setError('Enter your email and password.')
     setLoading(true)
     try {
       const res = await apiClient.post('/api/auth/login', form)
       login(res.data.token, res.data.user)
-      navigate('/dashboard')
+      navigate(location.state?.from || '/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed')
-    } finally {
+      setError(errorMessage(err, "Couldn't log in. Try again."))
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#070c18] flex items-center justify-center relative overflow-hidden">
-      {/* Background glows */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/[0.07] rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-purple-600/[0.07] rounded-full blur-3xl pointer-events-none" />
+    <AuthLayout>
+      <h1 className="serif text-[44px] leading-none">Welcome back</h1>
+      <p className="mt-3 text-sm text-muted">Log in to pick up where you left off.</p>
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="glass rounded-2xl p-8 w-full max-w-sm mx-4 relative z-10"
-      >
-        <div className="flex items-center gap-2.5 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">FP</span>
-          </div>
-          <span className="font-semibold text-white text-lg tracking-tight">FlowPilot</span>
-        </div>
-
-        <h1 className="text-xl font-bold text-white mb-1">Welcome back</h1>
-        <p className="text-sm text-slate-500 mb-6">Sign in to your account to continue</p>
-
+      <AnimatePresence>
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl mb-4">
+          <motion.p role="alert" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="mt-6 overflow-hidden rounded-control border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">
             {error}
-          </div>
+          </motion.p>
         )}
+      </AnimatePresence>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Email</label>
-            <Input name="email" type="email" placeholder="you@example.com" value={form.email} onChange={handleChange} required />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1.5">Password</label>
-            <Input name="password" type="password" placeholder="••••••••" value={form.password} onChange={handleChange} required />
-          </div>
-          <Button type="submit" disabled={loading} className="w-full mt-2">
-            {loading ? 'Signing in...' : 'Sign in'}
-          </Button>
-        </form>
+      <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
+        <Field label="Email">
+          {(a) => <Input {...a} type="email" autoComplete="email" autoFocus placeholder="you@example.com"
+            value={form.email} onChange={(e) => set({ email: e.target.value })} />}
+        </Field>
+        <Field label="Password">
+          {(a) => <Input {...a} type="password" autoComplete="current-password"
+            value={form.password} onChange={(e) => set({ password: e.target.value })} />}
+        </Field>
+        <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full justify-center mt-2">Log in</Button>
+      </form>
 
-        <p className="text-sm text-slate-600 mt-6 text-center">
-          No account?{' '}
-          <Link to="/signup" className="text-blue-400 hover:text-blue-300 transition-colors">
-            Create one
-          </Link>
-        </p>
-      </motion.div>
-    </div>
+      <p className="mt-8 text-sm text-muted">
+        New to FlowPilot? <Link to="/signup" className="text-fg underline underline-offset-4 decoration-line-strong hover:decoration-accent">Create an account</Link>
+      </p>
+    </AuthLayout>
   )
 }

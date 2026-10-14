@@ -1,266 +1,149 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import Contours from '../components/brand/Contours'
+import ProductPreview from '../components/brand/ProductPreview'
+import Logo from '../components/shell/Logo'
+import { buttonClasses } from '../components/ui/Button'
+import { Kbd } from '../components/ui/Controls'
+import { ProgressBar, Ring } from '../components/ui/Progress'
+import { Monogram } from '../components/ui/Pill'
+import { ease } from '../lib/motion'
 
-const FEATURES = [
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125H18M2.25 10.5h1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125H2.25" />
-      </svg>
-    ),
-    title: 'Expense Tracking',
-    desc: 'Log and categorize every transaction. See exactly where your money goes with clean, real-time breakdowns.',
-    color: 'blue',
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-      </svg>
-    ),
-    title: 'Smart Analytics',
-    desc: 'Visual charts reveal spending patterns and trends across months so you can make smarter decisions.',
-    color: 'purple',
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
-      </svg>
-    ),
-    title: 'Goal Tracking',
-    desc: 'Set savings targets and watch your progress. Stay motivated with a financial health score that evolves with you.',
-    color: 'emerald',
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-      </svg>
-    ),
-    title: 'Subscription Manager',
-    desc: 'Never get surprised by a charge again. Track every recurring payment and see your monthly subscription burn.',
-    color: 'rose',
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6 9 12.75l4.286-4.286a11.948 11.948 0 0 1 4.306 6.43l.776 2.898m0 0 3.182-5.511m-3.182 5.511-5.511-3.182" />
-      </svg>
-    ),
-    title: 'Debt Payoff Planner',
-    desc: 'List every debt, track balances, and monitor your payoff progress — all in one focused view.',
-    color: 'amber',
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-      </svg>
-    ),
-    title: 'Real-time Dashboard',
-    desc: 'A single command center that shows income, spending, net savings, and upcoming bills at a glance.',
-    color: 'cyan',
-  },
-]
+const rise = (delay) => ({
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, ease, delay },
+})
 
-const COLOR_MAP = {
-  blue:    { bg: 'bg-blue-500/10',   icon: 'text-blue-400',   border: 'border-blue-500/20' },
-  purple:  { bg: 'bg-purple-500/10', icon: 'text-purple-400', border: 'border-purple-500/20' },
-  emerald: { bg: 'bg-emerald-500/10',icon: 'text-emerald-400',border: 'border-emerald-500/20' },
-  rose:    { bg: 'bg-rose-500/10',   icon: 'text-rose-400',   border: 'border-rose-500/20' },
-  amber:   { bg: 'bg-amber-500/10',  icon: 'text-amber-400',  border: 'border-amber-500/20' },
-  cyan:    { bg: 'bg-cyan-500/10',   icon: 'text-cyan-400',   border: 'border-cyan-500/20' },
+function BudgetDemo() {
+  return (
+    <div className="space-y-4">
+      {[['Food', 0.62, 'food'], ['Transport', 0.91, 'transport'], ['Shopping', 1.08, 'shopping']].map(([name, pct, token]) => (
+        <div key={name}>
+          <div className="flex justify-between text-xs mb-1.5">
+            <span>{name}</span>
+            <span className={`num ${pct > 1 ? 'text-danger' : pct > 0.85 ? 'text-warning' : 'text-muted'}`}>{Math.round(pct * 100)}%</span>
+          </div>
+          <ProgressBar value={pct} marker={0.55} color={pct > 1 ? 'rgb(var(--danger))' : pct > 0.85 ? 'rgb(var(--warning))' : `rgb(var(--cat-${token}))`} />
+        </div>
+      ))}
+    </div>
+  )
 }
 
-const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 24 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5, ease: 'easeOut', delay },
-})
+function CalendarDemo() {
+  const due = { 3: 'Netflix', 9: 'Spotify', 17: 'iCloud+', 24: 'Notion' }
+  return (
+    <div className="grid grid-cols-7 gap-1 text-center">
+      {Array.from({ length: 28 }, (_, i) => (
+        <span key={i} className={`aspect-square rounded-md grid place-items-center text-2xs num relative
+          ${due[i + 1] ? 'bg-fg/[0.06] text-fg' : 'text-faint'} ${i + 1 === 9 ? '!bg-accent !text-on-accent' : ''}`}>
+          {i + 1}
+          {due[i + 1] && <span className={`absolute bottom-1 h-1 w-1 rounded-full ${i + 1 === 9 ? 'bg-on-accent' : 'bg-accent'}`} />}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function GoalDemo() {
+  return (
+    <div className="flex items-center gap-5">
+      <Ring value={0.68} size={88} stroke={8} label="68% funded"><span className="num text-sm">68%</span></Ring>
+      <div>
+        <p className="text-sm">MacBook Pro</p>
+        <p className="serif text-[30px] leading-none mt-1">₹1,22,400</p>
+        <p className="text-xs text-muted mt-2"><span className="num text-fg">₹19,200</span> a month gets you there by March</p>
+      </div>
+    </div>
+  )
+}
+
+const FEATURES = [
+  { title: 'Budgets that warn you early', body: 'Set a limit per category. The tick shows where you are in the month, so you see trouble while you can still change course.', demo: <BudgetDemo /> },
+  { title: 'Every renewal on one calendar', body: 'Subscriptions land on a calendar with a heads-up before each charge. Pause one and its cost drops out of your totals.', demo: <CalendarDemo /> },
+  { title: 'Goals that do the arithmetic', body: 'Name what you are saving for and when. FlowPilot works out the monthly amount and tracks every contribution.', demo: <GoalDemo /> },
+]
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-[#070c18] text-slate-100 overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden">
+      <Contours />
+      <header className="relative z-10 mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+        <Logo to="/" size={24} />
+        <nav className="flex items-center gap-2">
+          <Link to="/login" className="h-9 px-3 grid place-items-center rounded-control text-sm text-muted hover:text-fg transition-colors">Log in</Link>
+          <Link to="/signup" className={buttonClasses({ variant: 'primary' })}>Create account</Link>
+        </nav>
+      </header>
 
-      {/* Background glows */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-blue-600/[0.06] rounded-full blur-3xl" />
-        <div className="absolute top-2/3 right-0 w-[500px] h-[500px] bg-purple-600/[0.05] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-cyan-600/[0.04] rounded-full blur-3xl" />
-      </div>
-
-      {/* ── Navbar ── */}
-      <nav className="relative z-20 flex items-center justify-between px-6 md:px-12 py-5 border-b border-white/[0.05]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
-            <span className="text-white text-xs font-bold">FP</span>
+      <main className="relative z-10">
+        <section className="mx-auto grid max-w-6xl items-center gap-12 px-5 pt-14 pb-24 md:pt-20 lg:grid-cols-[1fr_520px]">
+          <div>
+            <motion.h1 {...rise(0)} className="serif text-[56px] leading-[0.98] md:text-[84px] tracking-tight max-w-[11ch]">
+              Know where your money goes.
+            </motion.h1>
+            <motion.p {...rise(0.08)} className="mt-6 max-w-[46ch] text-lg leading-relaxed text-muted">
+              FlowPilot keeps your spending, income, budgets, subscriptions and savings goals in one place, then tells you plainly what changed this month.
+            </motion.p>
+            <motion.div {...rise(0.16)} className="mt-8 flex flex-wrap items-center gap-3">
+              <Link to="/signup" className={buttonClasses({ variant: 'primary', size: 'lg' })}>Create free account</Link>
+              <Link to="/login" className={buttonClasses({ size: 'lg' })}>Log in</Link>
+            </motion.div>
+            <motion.p {...rise(0.24)} className="mt-6 text-sm text-faint">No bank connection needed. Your data stays in your account.</motion.p>
           </div>
-          <span className="font-semibold text-white text-lg tracking-tight">FlowPilot</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-white/[0.05]"
-          >
-            Sign in
-          </Link>
-          <Link
-            to="/signup"
-            className="text-sm font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-4 py-2 rounded-lg transition-all"
-          >
-            Get started
-          </Link>
-        </div>
-      </nav>
+          <motion.div initial={{ opacity: 0, y: 30, rotate: -1.5 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: 0.8, ease, delay: 0.2 }}>
+            <ProductPreview />
+          </motion.div>
+        </section>
 
-      {/* ── Hero ── */}
-      <section className="relative z-10 flex flex-col items-center text-center px-6 pt-24 pb-20">
-        <motion.div {...fadeUp(0)}>
-          <span className="inline-flex items-center gap-2 text-xs font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-            Personal finance, simplified
-          </span>
-        </motion.div>
-
-        <motion.h1 {...fadeUp(0.08)} className="text-4xl md:text-6xl font-bold text-white leading-tight max-w-3xl mb-5">
-          Take control of{' '}
-          <span className="gradient-text">your money</span>
-          <br />without the complexity
-        </motion.h1>
-
-        <motion.p {...fadeUp(0.16)} className="text-slate-400 text-lg max-w-xl mb-10 leading-relaxed">
-          FlowPilot tracks expenses, debts, subscriptions, and goals in one clean dashboard.
-          Know where every dollar goes — and where it should go next.
-        </motion.p>
-
-        <motion.div {...fadeUp(0.22)} className="flex flex-col sm:flex-row items-center gap-3">
-          <Link
-            to="/signup"
-            className="w-full sm:w-auto text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-900/30"
-          >
-            Start for free
-          </Link>
-          <Link
-            to="/login"
-            className="w-full sm:w-auto text-sm font-medium text-slate-400 hover:text-white glass px-6 py-3 rounded-xl transition-colors"
-          >
-            Sign in to your account
-          </Link>
-        </motion.div>
-
-        {/* Hero mock card */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.35 }}
-          className="mt-16 w-full max-w-2xl"
-        >
-          <div className="glass rounded-2xl p-6 text-left">
-            <p className="text-xs text-slate-500 mb-4 uppercase tracking-wider">This month's overview</p>
-            <div className="grid grid-cols-3 gap-4 mb-5">
-              {[
-                { label: 'Income', value: '$5,200', change: '+8.3%', up: true },
-                { label: 'Expenses', value: '$2,840', change: '-4.1%', up: false },
-                { label: 'Net savings', value: '$2,360', change: '+21%', up: true },
-              ].map((s) => (
-                <div key={s.label} className="bg-white/[0.03] rounded-xl p-3 border border-white/[0.06]">
-                  <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-                  <p className="text-lg font-bold text-white">{s.value}</p>
-                  <p className={`text-xs mt-0.5 ${s.up ? 'text-emerald-400' : 'text-rose-400'}`}>{s.change}</p>
-                </div>
+        <section className="border-t border-line bg-canvas/70 backdrop-blur-sm">
+          <div className="mx-auto max-w-6xl px-5 py-20">
+            <h2 className="serif text-[40px] md:text-[52px] leading-none max-w-[16ch]">Built around the questions you actually ask.</h2>
+            <div className="mt-12 grid gap-4 md:grid-cols-3">
+              {FEATURES.map((f) => (
+                <motion.article key={f.title}
+                  initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-80px' }}
+                  transition={{ duration: 0.5, ease }}
+                  className="flex flex-col rounded-panel border border-line bg-panel p-6">
+                  <div className="min-h-[150px]">{f.demo}</div>
+                  <h3 className="mt-6 text-base text-fg">{f.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{f.body}</p>
+                </motion.article>
               ))}
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                <div className="h-full w-[54%] bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[1.2fr_1fr] rounded-panel border border-line bg-panel p-6 md:p-8 items-center">
+              <div>
+                <h3 className="text-base text-fg">Fast with a keyboard</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted max-w-[52ch]">
+                  Press N to log an expense from any page. Ctrl K searches every page, action and transaction. G then a letter jumps between sections.
+                </p>
               </div>
-              <span className="text-xs text-slate-500 shrink-0">54% of budget used</span>
+              <div className="flex flex-wrap gap-3 text-sm text-muted">
+                <span className="flex items-center gap-2"><Kbd>N</Kbd> New expense</span>
+                <span className="flex items-center gap-2"><Kbd>Ctrl</Kbd><Kbd>K</Kbd> Search</span>
+                <span className="flex items-center gap-2"><Kbd>G</Kbd><Kbd>B</Kbd> Budgets</span>
+                <span className="flex items-center gap-2"><Monogram name="Netflix" size={22} /> Renewal alerts</span>
+              </div>
             </div>
           </div>
-        </motion.div>
-      </section>
+        </section>
 
-      {/* ── Features ── */}
-      <section className="relative z-10 px-6 md:px-12 pb-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Everything you need</h2>
-          <p className="text-slate-500 max-w-md mx-auto text-sm">
-            Six core tools designed to give you a complete picture of your financial life.
-          </p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
-          {FEATURES.map((f, i) => {
-            const c = COLOR_MAP[f.color]
-            return (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.06 }}
-                className="glass rounded-xl p-5 hover:bg-white/[0.06] transition-colors group"
-              >
-                <div className={`w-9 h-9 rounded-lg ${c.bg} border ${c.border} ${c.icon} flex items-center justify-center mb-4`}>
-                  {f.icon}
-                </div>
-                <h3 className="text-sm font-semibold text-white mb-1.5">{f.title}</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">{f.desc}</p>
-              </motion.div>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* ── CTA banner ── */}
-      <section className="relative z-10 px-6 md:px-12 pb-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="max-w-3xl mx-auto glass rounded-2xl p-10 text-center border border-blue-500/10"
-        >
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-600/[0.07] to-purple-600/[0.07] pointer-events-none" />
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-3 relative">
-            Ready to pilot your finances?
-          </h2>
-          <p className="text-slate-500 text-sm mb-8 relative">
-            Create a free account in seconds. No credit card required.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 relative">
-            <Link
-              to="/signup"
-              className="w-full sm:w-auto text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-8 py-3 rounded-xl transition-all shadow-lg shadow-blue-900/30"
-            >
-              Create free account
-            </Link>
-            <Link
-              to="/login"
-              className="w-full sm:w-auto text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              Already have an account?
-            </Link>
+        <section className="relative border-t border-line">
+          <div className="mx-auto max-w-6xl px-5 py-20 text-center">
+            <p className="serif text-[44px] md:text-[60px] leading-none">Start with one expense.</p>
+            <p className="mt-4 text-muted">It takes about ten seconds, and the picture fills in from there.</p>
+            <Link to="/signup" className={buttonClasses({ variant: 'primary', size: 'lg', className: 'mt-8' })}>Create free account</Link>
           </div>
-        </motion.div>
-      </section>
+        </section>
+      </main>
 
-      {/* ── Footer ── */}
-      <footer className="relative z-10 border-t border-white/[0.05] px-6 md:px-12 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white text-[9px] font-bold">FP</span>
-          </div>
-          <span className="text-sm text-slate-500">FlowPilot</span>
+      <footer className="relative z-10 border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-sm text-faint">
+          <Logo to="/" size={18} />
+          <span>© {new Date().getFullYear()} FlowPilot</span>
         </div>
-        <p className="text-xs text-slate-600">© 2026 FlowPilot. All rights reserved.</p>
       </footer>
     </div>
   )
