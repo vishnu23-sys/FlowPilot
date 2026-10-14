@@ -104,6 +104,7 @@ try {
   await step('Ctrl K palette navigates', async () => {
     await page.keyboard.press('Control+k')
     await page.getByPlaceholder('Search pages, actions or expenses').fill('budgets')
+    await page.locator('[cmdk-item][data-selected="true"]', { hasText: 'Budgets' }).waitFor()
     await page.keyboard.press('Enter')
     await page.waitForURL('**/budgets')
   })
