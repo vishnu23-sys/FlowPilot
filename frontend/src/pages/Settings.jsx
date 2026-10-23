@@ -15,7 +15,7 @@ import { invalidateFinance } from '../api/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { ACCENTS, usePreferences } from '../lib/preferences'
-import { CURRENCIES, currencySymbol, formatMoney } from '../lib/format'
+import { CURRENCIES, currencySymbol } from '../lib/format'
 import { checkPassword } from '../lib/password'
 import { usePageEntrance } from '../lib/entrance'
 import { spring, tabContentVariants } from '../lib/motion'
@@ -87,7 +87,7 @@ function ProfileTab() {
         <Row title="Currency" description="Changes the symbol shown everywhere. Amounts aren't converted.">
           <div className="max-w-sm">
             <Select aria-label="Currency" value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}>
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}, {formatMoney(1234, c)}</option>)}
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           </div>
         </Row>

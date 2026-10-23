@@ -7,7 +7,7 @@ import apiClient, { errorMessage } from '../api/apiClient'
 import AuthLayout from '../components/brand/AuthLayout'
 import Button from '../components/ui/Button'
 import { Field, Input, Select } from '../components/ui/Input'
-import { CURRENCIES, formatMoney } from '../lib/format'
+import { CURRENCIES } from '../lib/format'
 import { checkPassword } from '../lib/password'
 
 function guessCurrency() {
@@ -94,7 +94,7 @@ export default function Signup() {
         <Field label="Currency" hint="You can change this later in Settings.">
           {(a) => (
             <Select {...a} value={form.currency} onChange={(e) => set({ currency: e.target.value })}>
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}, {formatMoney(1234, c)}</option>)}
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           )}
         </Field>
