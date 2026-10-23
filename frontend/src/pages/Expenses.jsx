@@ -1,170 +1,331 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
-import toast from 'react-hot-toast'
-import AppLayout from '../components/AppLayout'
-import Card from '../components/ui/Card'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Plus, Search, X, ListFilter, ArrowUpDown, CalendarDays, Trash2, Receipt, Check } from 'lucide-react'
+import * as Popover from '@radix-ui/react-popover'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
 import Button from '../components/ui/Button'
-import { Input, Select } from '../components/ui/Input'
-import { SkeletonRow } from '../components/ui/Skeleton'
-import ConfirmModal from '../components/ui/ConfirmModal'
-import apiClient from '../api/apiClient'
-import { useAuth } from '../context/AuthContext'
-import { CATEGORIES, PAYMENT_METHODS, formatAmount } from '../constants'
+import { Checkbox, Menu, MenuTrigger, MenuContent, MenuItem } from '../components/ui/Controls'
+import { RowsSkeleton } from '../components/ui/Skeleton'
+import { EmptyState, QueryView } from '../components/ui/States'
+import ExpenseRow from '../features/expenses/ExpenseRow'
+import { DATE_PRESETS, SORTS, filterExpenses, groupByDay, readFilters, sortExpenses, summarize, writeFilters } from '../features/expenses/filters'
+import { keys, useExpenses } from '../api/queries'
+import { useCurrency } from '../context/AuthContext'
+import { CATEGORIES, categoryColor } from '../lib/categories'
+import { formatDayLabel, formatMoney } from '../lib/format'
+import { usePageEntrance } from '../lib/entrance'
+import { useSheets } from '../lib/sheets'
+import { deleteWithUndo } from '../lib/undo'
+import { dur, ease, spring, staggerItem } from '../lib/motion'
 
-const today = new Date().toISOString().split('T')[0]
+const PAGE = 50
 
-const emptyForm = { amount: '', category: 'Food', date: today, description: '', payment_method: 'Cash', is_recurring: false }
-
-const BADGE = {
-  Food: 'bg-orange-500/10 text-orange-400 border-orange-500/20', Transport: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  Shopping: 'bg-pink-500/10 text-pink-400 border-pink-500/20', Entertainment: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  Bills: 'bg-red-500/10 text-red-400 border-red-500/20', Health: 'bg-green-500/10 text-green-400 border-green-500/20',
-  Education: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', Travel: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-  Investments: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', Others: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+function CategoryFilter({ value, onChange }) {
+  const toggle = (id) => onChange(value.includes(id) ? value.filter((c) => c !== id) : [...value, id])
+  return (
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <Button size="md" aria-label="Filter by category">
+          <ListFilter size={14} aria-hidden="true" />
+          Category
+          {value.length > 0 && <span className="num text-2xs rounded bg-accent text-on-accent px-1">{value.length}</span>}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content align="start" sideOffset={6} className="z-[60] w-56 rounded-[10px] border border-line bg-raised p-1 shadow-pop">
+          {CATEGORIES.map((c) => (
+            <label key={c.id} className="flex items-center gap-2.5 h-8 px-2 rounded-md text-sm cursor-pointer hover:bg-fg/[0.05]">
+              <Checkbox checked={value.includes(c.id)} onCheckedChange={() => toggle(c.id)} label={c.id} />
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: categoryColor(c.id) }} aria-hidden="true" />
+              {c.id}
+            </label>
+          ))}
+          {value.length > 0 && (
+            <button type="button" onClick={() => onChange([])} className="mt-1 w-full h-8 rounded-md text-sm text-muted hover:text-fg hover:bg-fg/[0.05]">
+              Clear categories
+            </button>
+          )}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
 }
 
-export default function Expenses() {
-  const { user } = useAuth()
-  const currency = user?.currency || 'USD'
+function OptionMenu({ icon: Icon, label, options, value, onChange }) {
+  const current = options.find((o) => o.value === value)
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button aria-label={label}>
+          <Icon size={14} aria-hidden="true" />
+          {current?.label}
+        </Button>
+      </MenuTrigger>
+      <MenuContent align="start">
+        {options.map((o) => (
+          <MenuItem key={o.value} onSelect={() => onChange(o.value)} icon={o.value === value ? Check : undefined}>
+            <span className={o.value === value ? '' : 'pl-[22px]'}>{o.label}</span>
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
+  )
+}
 
-  const [expenses, setExpenses]     = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [showForm, setShowForm]     = useState(false)
-  const [editing, setEditing]       = useState(null)
-  const [form, setForm]             = useState(emptyForm)
-  const [formError, setFormError]   = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
+function Chip({ children, onRemove, color }) {
+  return (
+    <motion.button
+      layout
+      type="button"
+      onClick={onRemove}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: dur.fast }}
+      className="inline-flex items-center gap-1.5 h-7 pl-2.5 pr-1.5 rounded-full border border-line bg-panel text-xs text-fg hover:border-line-strong"
+    >
+      {color && <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />}
+      {children}
+      <X size={12} className="text-muted" aria-label="Remove filter" />
+    </motion.button>
+  )
+}
 
-  const fetchExpenses = () => {
-    setLoading(true)
-    apiClient.get('/api/expenses').then(r => setExpenses(r.data.expenses)).finally(() => setLoading(false))
-  }
+function BulkBar({ count, onClear, onDelete }) {
+  return (
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={spring.soft}
+          className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2 flex items-center gap-2 rounded-[12px] border border-line bg-raised pl-4 pr-2 py-2 shadow-pop"
+          role="region"
+          aria-label="Bulk actions"
+        >
+          <span className="text-sm"><span className="num">{count}</span> selected</span>
+          <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
+          <Button variant="danger" size="sm" onClick={onDelete}><Trash2 size={13} aria-hidden="true" /> Delete</Button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
 
-  useEffect(() => { fetchExpenses() }, [])
+function ExpenseList({ expenses, filters, currency, selected, setSelected, onSwipeDelete }) {
+  const [limit, setLimit] = useState(PAGE)
+  const sentinel = useRef(null)
+  const filtered = useMemo(() => sortExpenses(filterExpenses(expenses, filters), filters.sort), [expenses, filters])
+  const visible = filtered.slice(0, limit)
+  const byDate = filters.sort.startsWith('date')
+  const groups = byDate ? groupByDay(visible) : [{ date: null, total: 0, items: visible }]
+  const stats = summarize(filtered)
 
-  const openAdd  = () => { setForm(emptyForm); setEditing(null); setFormError(null); setShowForm(true) }
-  const openEdit = (exp) => {
-    setForm({ amount: exp.amount, category: exp.category, date: exp.date, description: exp.description || '', payment_method: exp.payment_method || 'Cash', is_recurring: exp.is_recurring })
-    setEditing(exp); setFormError(null); setShowForm(true)
-  }
+  useEffect(() => setLimit(PAGE), [filters])
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el) return
+    const io = new IntersectionObserver(([entry]) => entry.isIntersecting && setLimit((l) => l + PAGE), { rootMargin: '400px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [visible.length, filtered.length])
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }))
-  }
+  const allVisibleSelected = visible.length > 0 && visible.every((e) => selected.has(e.id))
+  const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(visible.map((e) => e.id)))
+  const toggle = (id, on) => setSelected((s) => {
+    const next = new Set(s)
+    if (on) next.add(id)
+    else next.delete(id)
+    return next
+  })
 
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setFormError(null); setSubmitting(true)
-    try {
-      const payload = { ...form, amount: parseFloat(form.amount) }
-      if (editing) { await apiClient.put(`/api/expenses/${editing.id}`, payload); toast.success('Expense updated') }
-      else          { await apiClient.post('/api/expenses', payload);              toast.success('Expense added') }
-      setShowForm(false); fetchExpenses()
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Something went wrong'
-      setFormError(msg); toast.error(msg)
-    } finally { setSubmitting(false) }
-  }
-
-  const handleDelete = async () => {
-    try {
-      await apiClient.delete(`/api/expenses/${deleteTarget}`)
-      toast.success('Expense deleted')
-      fetchExpenses()
-    } catch { toast.error('Failed to delete') }
-    finally { setDeleteTarget(null) }
+  if (!filtered.length) {
+    return (
+      <Panel>
+        <EmptyState icon={Search} title="No expenses match" body="Try a different search, or clear some filters." />
+      </Panel>
+    )
   }
 
   return (
-    <AppLayout>
-      <div className="flex items-center justify-between mb-7">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Expenses</h1>
-          <p className="text-sm text-slate-600 mt-0.5">{expenses.length} transaction{expenses.length !== 1 ? 's' : ''}</p>
+    <>
+      <motion.div variants={staggerItem} className="flex flex-wrap items-baseline justify-between gap-2 mb-2 px-1 text-sm text-muted">
+        <p>
+          <span className="num text-fg">{stats.count}</span> {stats.count === 1 ? 'expense' : 'expenses'} totalling{' '}
+          <span className="num text-fg">{formatMoney(stats.total, currency)}</span>, about{' '}
+          <span className="num text-fg">{formatMoney(stats.average, currency)}</span> each
+        </p>
+        <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <Checkbox
+            checked={allVisibleSelected ? true : selected.size ? 'indeterminate' : false}
+            onCheckedChange={toggleAll}
+            label="Select all shown"
+          />
+          Select all shown
+        </label>
+      </motion.div>
+
+      <Panel flush bodyClassName="overflow-clip rounded-panel">
+        {/* One flat list (day headers + rows) so a row keeps its identity across sorts and glides to its new place. */}
+        <AnimatePresence initial={false}>
+          {groups.flatMap((g) => [
+            g.date && (
+              <motion.div
+                key={`day-${g.date}`}
+                layout="position"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: dur.base, ease }}
+                className="sticky top-[52px] z-[2] flex items-center justify-between border-b border-line bg-raised px-4 py-2 text-xs"
+              >
+                <span className="text-fg font-medium">{formatDayLabel(g.date)}</span>
+                <span className="num text-muted">{formatMoney(g.total, currency)}</span>
+              </motion.div>
+            ),
+            ...g.items.map((e) => (
+              <motion.div
+                key={e.id}
+                layout="position"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: dur.base, ease, layout: { type: 'spring', stiffness: 340, damping: 34 } }}
+                className="border-b border-line last:border-b-0 overflow-hidden"
+              >
+                <ExpenseRow
+                  expense={e}
+                  currency={currency}
+                  meta={[byDate ? null : formatDayLabel(e.date), e.payment_method].filter(Boolean).join(', ')}
+                  selectable
+                  selected={selected.has(e.id)}
+                  onSelect={(on) => toggle(e.id, on)}
+                  onSwipeDelete={onSwipeDelete}
+                />
+              </motion.div>
+            )),
+          ].filter(Boolean))}
+        </AnimatePresence>
+      </Panel>
+      {visible.length < filtered.length && (
+        <div ref={sentinel} className="py-6 text-center">
+          <Button size="sm" onClick={() => setLimit((l) => l + PAGE)}>Show more</Button>
         </div>
-        <Button onClick={openAdd}><Plus size={15} /> Add Expense</Button>
+      )}
+    </>
+  )
+}
+
+export default function Expenses() {
+  const currency = useCurrency()
+  const entrance = usePageEntrance()
+  const qc = useQueryClient()
+  const { openSheet } = useSheets()
+  const query = useExpenses()
+  const [params, setParams] = useSearchParams()
+  const filters = useMemo(() => readFilters(params), [params])
+  const [search, setSearch] = useState(filters.q)
+  const [selected, setSelected] = useState(new Set())
+  const searchRef = useRef(null)
+
+  const setFilters = (patch) => setParams(writeFilters({ ...filters, ...patch }), { replace: true })
+
+  // Debounce typing into the URL.
+  useEffect(() => {
+    const id = setTimeout(() => { if (search !== filters.q) setFilters({ q: search }) }, 200)
+    return () => clearTimeout(id)
+  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const deleteSelected = () => {
+    const ids = [...selected]
+    setSelected(new Set())
+    deleteWithUndo({
+      qc, queryKey: keys.expenses, ids,
+      message: `${ids.length} ${ids.length === 1 ? 'expense' : 'expenses'} deleted`,
+      url: '/api/expenses/bulk-delete', method: 'POST', body: { ids },
+    })
+  }
+
+  const hasFilters = filters.q || filters.categories.length || filters.preset !== 'all'
+
+  return (
+    <motion.div {...entrance}>
+      <PageHeader
+        context="Every rupee out, by day"
+        title="Expenses"
+        actions={<Button variant="primary" onClick={() => openSheet('expense')}><Plus size={14} strokeWidth={2.4} aria-hidden="true" /> New expense</Button>}
+      />
+
+      <motion.div variants={staggerItem} className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <input
+            ref={searchRef}
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search description, category or amount"
+            aria-label="Search expenses"
+            className="h-9 w-full rounded-control border border-line bg-panel pl-9 pr-10 text-sm text-fg placeholder:text-faint outline-none
+              hover:border-line-strong focus:border-accent/70 focus:ring-2 focus:ring-accent/20"
+          />
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-2xs font-mono text-faint">/</kbd>
+        </div>
+        <CategoryFilter value={filters.categories} onChange={(categories) => setFilters({ categories })} />
+        <OptionMenu icon={CalendarDays} label="Date range" options={DATE_PRESETS} value={filters.preset} onChange={(preset) => setFilters({ preset })} />
+        <OptionMenu icon={ArrowUpDown} label="Sort" options={SORTS} value={filters.sort} onChange={(sort) => setFilters({ sort })} />
+      </motion.div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mb-4 min-h-0">
+        <AnimatePresence>
+          {filters.q && <Chip key="q" onRemove={() => { setSearch(''); setFilters({ q: '' }) }}>“{filters.q}”</Chip>}
+          {filters.categories.map((c) => (
+            <Chip key={c} color={categoryColor(c)} onRemove={() => setFilters({ categories: filters.categories.filter((x) => x !== c) })}>{c}</Chip>
+          ))}
+          {filters.preset !== 'all' && (
+            <Chip key="preset" onRemove={() => setFilters({ preset: 'all' })}>{DATE_PRESETS.find((p) => p.value === filters.preset)?.label}</Chip>
+          )}
+          {hasFilters && (
+            <motion.button key="clear" layout type="button" onClick={() => { setSearch(''); setParams(new URLSearchParams(), { replace: true }) }}
+              className="h-7 px-2 text-xs text-muted hover:text-fg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              Clear all
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
-      <Card delay={0.1} noPad className="overflow-hidden">
-        {loading ? (
-          <div className="p-5 space-y-1">{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</div>
-        ) : expenses.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-4"><Plus size={20} className="text-slate-600" /></div>
-            <p className="text-slate-400 font-medium mb-1">No expenses yet</p>
-            <p className="text-slate-600 text-sm mb-5">Track your first transaction to start seeing spending insights.</p>
-            <Button onClick={openAdd}><Plus size={14} /> Add first expense</Button>
-          </div>
+      <QueryView query={query} loading={<Panel flush><RowsSkeleton rows={8} /></Panel>}>
+        {(expenses) => expenses.length === 0 ? (
+          <Panel>
+            <EmptyState
+              icon={Receipt}
+              title="Log your first expense"
+              body="Press N anywhere, or use the button below. Expenses power your charts, budgets and insights."
+              action={<Button variant="primary" onClick={() => openSheet('expense')}><Plus size={14} aria-hidden="true" /> New expense</Button>}
+            />
+          </Panel>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  {['Date','Category','Description','Payment','Recurring','Amount',''].map(h => (
-                    <th key={h} className={`px-5 py-3.5 text-[11px] font-medium uppercase tracking-wider text-slate-600 ${h==='Amount'?'text-right':'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {expenses.map((exp, i) => (
-                  <motion.tr key={exp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.025, duration: 0.2 }} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">{exp.date}</td>
-                    <td className="px-5 py-3.5"><span className={`text-xs px-2 py-0.5 rounded-full border ${BADGE[exp.category]||BADGE.Others}`}>{exp.category}</span></td>
-                    <td className="px-5 py-3.5 text-slate-400 max-w-[200px] truncate">{exp.description||'—'}</td>
-                    <td className="px-5 py-3.5 text-slate-500">{exp.payment_method||'—'}</td>
-                    <td className="px-5 py-3.5 text-slate-600">{exp.is_recurring?'Yes':'No'}</td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-white whitespace-nowrap">{formatAmount(exp.amount, currency)}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <button onClick={() => openEdit(exp)} className="p-1.5 text-slate-600 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"><Pencil size={13} /></button>
-                        <button onClick={() => setDeleteTarget(exp.id)} className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ExpenseList expenses={expenses} filters={filters} currency={currency} selected={selected} setSelected={setSelected}
+            onSwipeDelete={(e) => deleteWithUndo({ qc, queryKey: keys.expenses, ids: [e.id], message: 'Expense deleted', url: `/api/expenses/${e.id}` })} />
         )}
-      </Card>
+      </QueryView>
 
-      {/* Add/Edit modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 12 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="glass rounded-2xl p-6 w-full max-w-md">
-              <h2 className="text-base font-semibold text-white mb-5">{editing ? 'Edit Expense' : 'Add Expense'}</h2>
-              {formError && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl mb-4">{formError}</div>}
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="block text-xs text-slate-500 mb-1.5">Amount *</label><Input name="amount" type="number" step="0.01" min="0" value={form.amount} onChange={handleChange} required placeholder="0.00" /></div>
-                  <div><label className="block text-xs text-slate-500 mb-1.5">Date *</label><Input name="date" type="date" value={form.date} onChange={handleChange} required /></div>
-                </div>
-                <div><label className="block text-xs text-slate-500 mb-1.5">Category *</label><Select name="category" value={form.category} onChange={handleChange}>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</Select></div>
-                <div><label className="block text-xs text-slate-500 mb-1.5">Description</label><Input name="description" type="text" value={form.description} onChange={handleChange} placeholder="Optional" /></div>
-                <div><label className="block text-xs text-slate-500 mb-1.5">Payment method</label><Select name="payment_method" value={form.payment_method} onChange={handleChange}>{PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}</Select></div>
-                <label className="flex items-center gap-3 cursor-pointer py-1 select-none"><input name="is_recurring" type="checkbox" checked={form.is_recurring} onChange={handleChange} className="w-4 h-4 rounded accent-blue-500" /><span className="text-sm text-slate-400">Recurring expense</span></label>
-                <div className="flex gap-3 pt-2">
-                  <Button type="submit" disabled={submitting} className="flex-1">{submitting ? 'Saving...' : editing ? 'Save changes' : 'Add expense'}</Button>
-                  <Button type="button" variant="ghost" onClick={() => setShowForm(false)} className="flex-1">Cancel</Button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <ConfirmModal
-        isOpen={deleteTarget !== null}
-        title="Delete expense?"
-        message="This action cannot be undone."
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
-    </AppLayout>
+      <BulkBar count={selected.size} onClear={() => setSelected(new Set())} onDelete={deleteSelected} />
+    </motion.div>
   )
 }

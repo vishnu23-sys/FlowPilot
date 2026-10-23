@@ -13,7 +13,7 @@ PASSWORD_RE = {
 }
 
 
-def _validate_password(pw):
+def validate_password(pw):
     for key, (pattern, msg) in PASSWORD_RE.items():
         if not re.search(pattern, pw):
             return msg
@@ -38,7 +38,7 @@ def update_profile():
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
 
     if 'full_name' in data:
         name = str(data['full_name']).strip()
@@ -86,16 +86,16 @@ def change_password():
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     current_pw = data.get('current_password', '')
     new_pw     = data.get('new_password', '')
 
     if not current_pw or not new_pw:
         return jsonify({'error': 'Both current and new password are required'}), 400
     if not bcrypt.check_password_hash(user.password_hash, current_pw):
-        return jsonify({'error': 'Current password is incorrect'}), 401
+        return jsonify({'error': 'Current password is incorrect'}), 400
 
-    error = _validate_password(new_pw)
+    error = validate_password(new_pw)
     if error:
         return jsonify({'error': error}), 400
 

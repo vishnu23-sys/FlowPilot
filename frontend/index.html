@@ -1,10 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-accent="lime">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FlowPilot tracks spending, income, budgets, subscriptions and savings goals in one calm place." />
     <title>FlowPilot</title>
+    <script>
+      // Apply saved theme before first paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var p = JSON.parse(localStorage.getItem('fp:prefs') || '{}')
+          var theme = p.theme === 'light' || p.theme === 'dark'
+            ? p.theme
+            : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+          var root = document.documentElement
+          root.dataset.theme = theme
+          root.dataset.accent = p.accent || 'lime'
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

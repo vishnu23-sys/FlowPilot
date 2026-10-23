@@ -1,0 +1,74 @@
+/* Colour tokens are space-separated RGB channels so Tailwind can apply alpha (bg-accent/10). */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: 12 12 14;
+  --panel: 20 20 23;
+  --raised: 28 28 32;
+  --line: 38 38 43;
+  --line-strong: 58 58 65;
+  --fg: 236 236 239;
+  --muted: 140 140 150;
+  --faint: 88 88 98;
+  --dot: 255 255 255;
+  --dot-alpha: 0.055;
+  --shadow-strength: 0.55;
+
+  --danger: 240 104 92;
+  --warning: 232 178 72;
+  --success: 98 204 138;
+
+  --cat-food: 232 163 61;
+  --cat-transport: 91 155 230;
+  --cat-shopping: 228 108 154;
+  --cat-entertainment: 154 132 236;
+  --cat-bills: 226 115 91;
+  --cat-health: 76 191 138;
+  --cat-education: 69 184 201;
+  --cat-travel: 212 194 74;
+  --cat-investments: 127 163 107;
+  --cat-others: 142 142 150;
+
+  --accent: 197 242 58;
+  --on-accent: 12 12 14;
+}
+
+[data-theme='dark'][data-accent='vermilion'] { --accent: 255 112 84; --on-accent: 12 12 14; }
+[data-theme='dark'][data-accent='teal'] { --accent: 61 214 181; --on-accent: 12 12 14; }
+
+[data-theme='light'] {
+  color-scheme: light;
+  --canvas: 243 239 230;
+  --panel: 251 249 244;
+  --raised: 255 255 255;
+  --line: 223 216 200;
+  --line-strong: 199 190 171;
+  --fg: 27 26 23;
+  --muted: 110 104 92;
+  --faint: 163 156 141;
+  --dot: 27 26 23;
+  --dot-alpha: 0.085;
+  --shadow-strength: 0.14;
+
+  --danger: 190 52 40;
+  --warning: 156 102 8;
+  --success: 32 128 74;
+
+  --cat-food: 184 112 12;
+  --cat-transport: 40 104 184;
+  --cat-shopping: 186 52 104;
+  --cat-entertainment: 104 80 196;
+  --cat-bills: 186 72 46;
+  --cat-health: 28 138 88;
+  --cat-education: 18 130 148;
+  --cat-travel: 140 124 10;
+  --cat-investments: 78 112 58;
+  --cat-others: 110 106 98;
+
+  --accent: 79 122 0;
+  --on-accent: 251 249 244;
+}
+
+[data-theme='light'][data-accent='vermilion'] { --accent: 196 66 40; --on-accent: 251 249 244; }
+[data-theme='light'][data-accent='teal'] { --accent: 14 120 99; --on-accent: 251 249 244; }

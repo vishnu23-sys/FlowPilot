@@ -96,3 +96,65 @@ class Subscription(db.Model):
             'next_renewal_date': self.next_renewal_date.isoformat(),
             'is_active': self.is_active,
         }
+
+
+class Income(db.Model):
+    __tablename__ = 'income'
+    __table_args__ = (db.Index('ix_income_user_id', 'user_id'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    source = db.Column(db.String(50), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.String(255), default='')
+    is_recurring = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'amount': self.amount,
+            'source': self.source,
+            'date': self.date.isoformat(),
+            'description': self.description,
+            'is_recurring': self.is_recurring,
+        }
+
+
+class Budget(db.Model):
+    __tablename__ = 'budgets'
+    __table_args__ = (db.UniqueConstraint('user_id', 'category', name='uq_budget_user_category'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    category = db.Column(db.String(50), nullable=False)
+    monthly_limit = db.Column(db.Float, nullable=False)
+
+
+class SavingsGoal(db.Model):
+    __tablename__ = 'savings_goals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    target_amount = db.Column(db.Float, nullable=False)
+    target_date = db.Column(db.Date, nullable=True)
+    color = db.Column(db.String(20), default='accent')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    contributions = db.relationship(
+        'GoalContribution', backref='goal', cascade='all, delete-orphan',
+        order_by='GoalContribution.date.desc(), GoalContribution.id.desc()',
+    )
+
+
+class GoalContribution(db.Model):
+    __tablename__ = 'goal_contributions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(db.Integer, db.ForeignKey('savings_goals.id'), nullable=False, index=True)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    note = db.Column(db.String(255), default='')
+
+    def to_dict(self):
+        return {'id': self.id, 'amount': self.amount, 'date': self.date.isoformat(), 'note': self.note}

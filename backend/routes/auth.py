@@ -2,17 +2,24 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from extensions import db, bcrypt
 from models import User
+from routes.profile import validate_password
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     for field in ['full_name', 'email', 'password']:
-        if not data or not data.get(field, '').strip():
+        if not str(data.get(field) or '').strip():
             return jsonify({'error': f'{field} is required'}), 400
+
+    if '@' not in data['email']:
+        return jsonify({'error': 'Invalid email address'}), 400
+    pw_error = validate_password(data['password'])
+    if pw_error:
+        return jsonify({'error': pw_error}), 400
 
     if User.query.filter_by(email=data['email'].lower().strip()).first():
         return jsonify({'error': 'Email already registered'}), 409
@@ -23,8 +30,8 @@ def register():
         full_name=data['full_name'].strip(),
         email=data['email'].lower().strip(),
         password_hash=password_hash,
-        monthly_income=data.get('monthly_income') or None,
-        currency=data.get('currency', 'USD'),
+        monthly_income=None,
+        currency=str(data.get('currency') or 'USD').upper()[:3],
     )
     db.session.add(user)
     db.session.commit()
@@ -35,12 +42,12 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
-    if not data or not data.get('email') or not data.get('password'):
+    if not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Email and password are required'}), 400
 
-    user = User.query.filter_by(email=data['email'].lower().strip()).first()
+    user = User.query.filter_by(email=str(data['email']).lower().strip()).first()
 
     if not user or not bcrypt.check_password_hash(user.password_hash, data['password']):
         return jsonify({'error': 'Invalid email or password'}), 401

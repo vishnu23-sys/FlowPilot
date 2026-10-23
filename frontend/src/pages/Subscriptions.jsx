@@ -1,188 +1,317 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, RefreshCw, DollarSign, Calendar } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
-import AppLayout from '../components/AppLayout'
-import Card from '../components/ui/Card'
-import StatCard from '../components/ui/StatCard'
+import { Plus, ChevronLeft, ChevronRight, Pencil, Pause, Play, X, Repeat, CalendarDays } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
 import Button from '../components/ui/Button'
-import { Input, Select } from '../components/ui/Input'
-import { SkeletonCard } from '../components/ui/Skeleton'
-import ConfirmModal from '../components/ui/ConfirmModal'
-import apiClient from '../api/apiClient'
-import { useAuth } from '../context/AuthContext'
-import { formatAmount } from '../constants'
+import Segmented, { directionOf } from '../components/ui/Segmented'
+import RollingNumber from '../components/ui/RollingNumber'
+import { Monogram, Badge } from '../components/ui/Pill'
+import { Ring } from '../components/ui/Progress'
+import { Skeleton } from '../components/ui/Skeleton'
+import { EmptyState, QueryView } from '../components/ui/States'
+import { monthlyCost, renewalCalendar, upcomingDates } from '../features/subscriptions/schedule'
+import apiClient, { errorMessage } from '../api/apiClient'
+import { useFinanceMutation, useSubscriptions } from '../api/queries'
+import { useCurrency } from '../context/AuthContext'
+import { daysBetween, formatMoney, formatRelativeDays, formatShortDate, parseISODate, todayISO } from '../lib/format'
+import { usePageEntrance } from '../lib/entrance'
+import { useSheets } from '../lib/sheets'
+import { dur, ease, spring, staggerItem, tabContentVariants } from '../lib/motion'
+import { lift } from '../lib/interactions'
 
-const today = new Date().toISOString().split('T')[0]
-const emptyForm = { name: '', amount: '', billing_cycle: 'monthly', next_renewal_date: today, is_active: true }
-
-function daysUntil(dateStr) {
-  return Math.ceil((new Date(dateStr) - new Date(new Date().toDateString())) / 86400000)
+function urgency(iso) {
+  const d = daysBetween(todayISO(), iso)
+  if (d <= 2) return 'danger'
+  if (d <= 7) return 'warning'
+  return 'neutral'
 }
 
-export default function Subscriptions() {
-  const { user } = useAuth()
-  const currency = user?.currency || 'USD'
+function Hero({ subs, currency }) {
+  const active = subs.filter((s) => s.is_active)
+  const monthly = active.reduce((sum, s) => sum + monthlyCost(s), 0)
+  return (
+    <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+      <div className="p-5 md:p-6">
+        <p className="text-sm text-muted">Every month</p>
+        <p className="serif text-[48px] leading-none mt-2"><RollingNumber value={formatMoney(monthly, currency, { decimals: 0 })} /></p>
+        <p className="text-xs text-muted mt-3">Yearly plans counted as a twelfth</p>
+      </div>
+      <div className="p-5 md:p-6">
+        <p className="text-sm text-muted">Every year</p>
+        <p className="serif text-[48px] leading-none mt-2"><RollingNumber value={formatMoney(monthly * 12, currency, { decimals: 0 })} /></p>
+        <p className="text-xs text-muted mt-3">What these cost if nothing changes</p>
+      </div>
+      <div className="p-5 md:p-6 flex items-center gap-5">
+        <Ring value={subs.length ? active.length / subs.length : 0} size={84} stroke={8} label={`${active.length} of ${subs.length} active`}>
+          <span className="serif text-[30px]">{active.length}</span>
+        </Ring>
+        <div className="text-sm">
+          <p className="text-muted">Active</p>
+          <p className="mt-1"><span className="num">{subs.length - active.length}</span> <span className="text-muted">paused</span></p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
-  const [subs, setSubs]             = useState([])
-  const [summary, setSummary]       = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [showForm, setShowForm]     = useState(false)
-  const [editing, setEditing]       = useState(null)
-  const [form, setForm]             = useState(emptyForm)
-  const [formError, setFormError]   = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-
-  const fetchData = () => {
-    setLoading(true)
-    Promise.all([apiClient.get('/api/subscriptions'), apiClient.get('/api/subscriptions/summary')])
-      .then(([s, sm]) => { setSubs(s.data.subscriptions); setSummary(sm.data) })
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetchData() }, [])
-
-  const openAdd  = () => { setForm(emptyForm); setEditing(null); setFormError(null); setShowForm(true) }
-  const openEdit = (sub) => {
-    setForm({ name: sub.name, amount: sub.amount, billing_cycle: sub.billing_cycle, next_renewal_date: sub.next_renewal_date, is_active: sub.is_active })
-    setEditing(sub); setFormError(null); setShowForm(true)
-  }
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setFormError(null); setSubmitting(true)
-    try {
-      const payload = { ...form, amount: parseFloat(form.amount) }
-      if (editing) { await apiClient.put(`/api/subscriptions/${editing.id}`, payload); toast.success('Subscription updated') }
-      else          { await apiClient.post('/api/subscriptions', payload);               toast.success('Subscription added') }
-      setShowForm(false); fetchData()
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Something went wrong'
-      setFormError(msg); toast.error(msg)
-    } finally { setSubmitting(false) }
-  }
-
-  const handleDelete = async () => {
-    try { await apiClient.delete(`/api/subscriptions/${deleteTarget}`); toast.success('Subscription deleted'); fetchData() }
-    catch { toast.error('Failed to delete') }
-    finally { setDeleteTarget(null) }
-  }
+function Calendar({ subs, selected, onSelect }) {
+  const now = new Date()
+  const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth(), dir: 1 })
+  const map = useMemo(() => renewalCalendar(subs, view.y, view.m), [subs, view.y, view.m])
+  const first = new Date(view.y, view.m, 1)
+  const offset = (first.getDay() + 6) % 7 // Monday first
+  const days = new Date(view.y, view.m + 1, 0).getDate()
+  const today = todayISO()
+  const shift = (step) => setView((v) => {
+    const d = new Date(v.y, v.m + step, 1)
+    return { y: d.getFullYear(), m: d.getMonth(), dir: step }
+  })
 
   return (
-    <AppLayout>
-      <div className="flex items-center justify-between mb-7">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Subscriptions</h1>
-          <p className="text-sm text-slate-600 mt-0.5">{subs.filter(s => s.is_active).length} active subscription{subs.filter(s => s.is_active).length !== 1 ? 's' : ''}</p>
+    <Panel
+      title={<h2 className="text-sm text-fg">{first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</h2>}
+      action={
+        <div className="flex gap-1">
+          <Button size="icon-sm" variant="ghost" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft size={15} /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Next month" onClick={() => shift(1)}><ChevronRight size={15} /></Button>
         </div>
-        <Button onClick={openAdd}><Plus size={15} /> Add Subscription</Button>
+      }
+    >
+      <div className="grid grid-cols-7 text-center text-2xs text-muted mb-1">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i} className="py-1">{d}</span>)}
       </div>
-
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <StatCard label="Monthly cost"   numericValue={summary?.monthly_total || 0} currencyCode={currency} icon={RefreshCw}  gradient="from-blue-600 to-cyan-500"    delay={0} />
-          <StatCard label="Yearly cost"    numericValue={summary?.yearly_total   || 0} currencyCode={currency} icon={DollarSign} gradient="from-purple-600 to-pink-500"  delay={0.08} />
-          <StatCard label="Total per year" numericValue={summary?.total_yearly   || 0} currencyCode={currency} icon={Calendar}   gradient="from-emerald-600 to-teal-500" delay={0.16} />
-        </div>
-      )}
-
-      {!loading && summary?.upcoming_renewals?.length > 0 && (
-        <Card delay={0.15} className="mb-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar size={14} className="text-amber-400" />
-            <p className="text-sm font-medium text-slate-300">Upcoming renewals</p>
-            <span className="text-xs text-slate-600 ml-1">next 30 days</span>
-          </div>
-          <div className="space-y-0.5">
-            {summary.upcoming_renewals.map(sub => {
-              const days = daysUntil(sub.next_renewal_date)
+      <div className="relative overflow-hidden">
+        <AnimatePresence mode="popLayout" custom={view.dir} initial={false}>
+          <motion.div key={`${view.y}-${view.m}`} custom={view.dir} variants={tabContentVariants} initial="initial" animate="animate" exit="exit"
+            className="grid grid-cols-7 gap-1">
+            {Array.from({ length: offset }).map((_, i) => <span key={`b${i}`} />)}
+            {Array.from({ length: days }, (_, i) => {
+              const iso = `${view.y}-${String(view.m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+              const due = map[iso] || []
+              const isSel = selected === iso
               return (
-                <div key={sub.id} className="flex items-center gap-3 py-2.5 border-b border-white/[0.05] last:border-0">
-                  <div className="flex-1 min-w-0"><p className="text-sm text-slate-200">{sub.name}</p><p className="text-xs text-slate-600 mt-0.5">{sub.next_renewal_date}</p></div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${days <= 7 ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-                    {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
-                  </span>
-                  <p className="text-sm font-semibold text-white whitespace-nowrap">{formatAmount(sub.amount, currency)}</p>
-                </div>
+                <button
+                  key={iso}
+                  type="button"
+                  disabled={!due.length}
+                  onClick={() => onSelect(isSel ? null : iso)}
+                  aria-label={`${formatShortDate(iso)}${due.length ? `, ${due.map((s) => s.name).join(', ')} renew` : ''}`}
+                  aria-pressed={isSel}
+                  className={`relative aspect-square rounded-md text-xs num flex flex-col items-center justify-center gap-0.5 transition-colors
+                    ${isSel ? 'bg-accent text-on-accent' : due.length ? 'bg-fg/[0.05] hover:bg-fg/[0.1] text-fg' : 'text-faint'}
+                    ${iso === today && !isSel ? 'ring-1 ring-accent/70' : ''}`}
+                >
+                  {i + 1}
+                  {due.length > 0 && (
+                    <span className="flex gap-0.5" aria-hidden="true">
+                      {due.slice(0, 3).map((s) => <span key={s.id} className={`h-1 w-1 rounded-full ${isSel ? 'bg-on-accent' : 'bg-accent'}`} />)}
+                    </span>
+                  )}
+                </button>
               )
             })}
-          </div>
-        </Card>
-      )}
-
-      <Card delay={0.2} noPad className="overflow-hidden">
-        {loading ? <div className="p-6 text-slate-600 text-sm">Loading...</div>
-        : subs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-4"><RefreshCw size={18} className="text-slate-600" /></div>
-            <p className="text-slate-400 font-medium mb-1">No subscriptions yet</p>
-            <p className="text-slate-600 text-sm mb-5">Track your recurring bills — Netflix, Spotify, gym memberships.</p>
-            <Button onClick={openAdd}><Plus size={14} /> Add first subscription</Button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-white/[0.06]">
-                {['Name','Billing','Next renewal','Status','Amount',''].map(h => (
-                  <th key={h} className={`px-5 py-3.5 text-[11px] font-medium uppercase tracking-wider text-slate-600 ${h==='Amount'?'text-right':'text-left'}`}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {subs.map((sub, i) => (
-                  <motion.tr key={sub.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.025 }} className={`hover:bg-white/[0.02] transition-colors ${!sub.is_active ? 'opacity-40' : ''}`}>
-                    <td className="px-5 py-3.5 text-slate-200 font-medium">{sub.name}</td>
-                    <td className="px-5 py-3.5"><span className={`text-xs px-2 py-0.5 rounded-full border ${sub.billing_cycle==='monthly'?'bg-blue-500/10 text-blue-400 border-blue-500/20':'bg-purple-500/10 text-purple-400 border-purple-500/20'}`}>{sub.billing_cycle}</span></td>
-                    <td className="px-5 py-3.5 text-slate-500">{sub.next_renewal_date}</td>
-                    <td className="px-5 py-3.5"><span className={`text-xs px-2 py-0.5 rounded-full border ${sub.is_active?'bg-green-500/10 text-green-400 border-green-500/20':'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>{sub.is_active?'Active':'Inactive'}</span></td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-white whitespace-nowrap">{formatAmount(sub.amount, currency)}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1.5 justify-end">
-                        <button onClick={() => openEdit(sub)} className="p-1.5 text-slate-600 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"><Pencil size={13} /></button>
-                        <button onClick={() => setDeleteTarget(sub.id)} className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 12 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="glass rounded-2xl p-6 w-full max-w-md">
-              <h2 className="text-base font-semibold text-white mb-5">{editing ? 'Edit Subscription' : 'Add Subscription'}</h2>
-              {formError && <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl mb-4">{formError}</div>}
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <div><label className="block text-xs text-slate-500 mb-1.5">Name *</label><Input name="name" value={form.name} onChange={handleChange} required placeholder="e.g. Netflix" /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="block text-xs text-slate-500 mb-1.5">Amount *</label><Input name="amount" type="number" step="0.01" min="0" value={form.amount} onChange={handleChange} required placeholder="0.00" /></div>
-                  <div><label className="block text-xs text-slate-500 mb-1.5">Billing cycle</label><Select name="billing_cycle" value={form.billing_cycle} onChange={handleChange}><option value="monthly">Monthly</option><option value="yearly">Yearly</option></Select></div>
-                </div>
-                <div><label className="block text-xs text-slate-500 mb-1.5">Next renewal date *</label><Input name="next_renewal_date" type="date" value={form.next_renewal_date} onChange={handleChange} required /></div>
-                <label className="flex items-center gap-3 cursor-pointer py-1 select-none"><input name="is_active" type="checkbox" checked={form.is_active} onChange={handleChange} className="w-4 h-4 rounded accent-blue-500" /><span className="text-sm text-slate-400">Active subscription</span></label>
-                <div className="flex gap-3 pt-2">
-                  <Button type="submit" disabled={submitting} className="flex-1">{submitting ? 'Saving...' : editing ? 'Save changes' : 'Add subscription'}</Button>
-                  <Button type="button" variant="ghost" onClick={() => setShowForm(false)} className="flex-1">Cancel</Button>
-                </div>
-              </form>
-            </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
+    </Panel>
+  )
+}
 
-      <ConfirmModal isOpen={deleteTarget !== null} title="Delete subscription?" message="This action cannot be undone." onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
-    </AppLayout>
+function Upcoming({ subs, currency, selectedDay, onOpen }) {
+  const list = useMemo(() => {
+    const active = subs.filter((s) => s.is_active)
+    if (selectedDay) {
+      const d = parseISODate(selectedDay)
+      return active.filter((s) => renewalCalendar([s], d.getFullYear(), d.getMonth())[selectedDay])
+    }
+    const horizon = 30
+    return active
+      .filter((s) => daysBetween(todayISO(), s.next_renewal_date) <= horizon && daysBetween(todayISO(), s.next_renewal_date) >= 0)
+      .sort((a, b) => a.next_renewal_date.localeCompare(b.next_renewal_date))
+  }, [subs, selectedDay])
+
+  return (
+    <Panel flush className="lg:col-span-2" title={selectedDay ? `Renewing ${formatShortDate(selectedDay)}` : 'Coming up in the next 30 days'}>
+      {!list.length ? <EmptyState compact icon={CalendarDays} title="No renewals coming up" body="Nothing renews in this window." /> : (
+        <ul className="divide-y divide-line">
+          <AnimatePresence initial={false}>
+            {list.map((s) => (
+              <motion.li key={s.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: dur.base, ease }} className="overflow-hidden">
+                <button type="button" onClick={() => onOpen(s)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-fg/[0.03]">
+                  <Monogram name={s.name} size={34} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm">{s.name}</span>
+                    <span className="block text-xs text-muted mt-0.5">{formatShortDate(s.next_renewal_date)}</span>
+                  </span>
+                  <Badge tone={urgency(s.next_renewal_date)}>{formatRelativeDays(s.next_renewal_date)}</Badge>
+                  <span className="num text-sm w-24 text-right">{formatMoney(s.amount, currency)}</span>
+                </button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+function SubCard({ sub, currency, onOpen }) {
+  return (
+    <motion.button
+      layoutId={`sub-card-${sub.id}`}
+      type="button"
+      onClick={() => onOpen(sub)}
+      transition={spring.soft}
+      whileHover={lift.hover}
+      whileTap={lift.tap}
+      data-glow className={`group text-left rounded-panel border border-line bg-panel p-4 hover:border-line-strong transition-colors ${sub.is_active ? '' : 'opacity-60'}`}
+    >
+      <motion.div layout="position" className="flex items-start justify-between">
+        <Monogram name={sub.name} size={38} />
+        {!sub.is_active ? <Badge>Paused</Badge> : <Badge tone={urgency(sub.next_renewal_date)}>{formatRelativeDays(sub.next_renewal_date)}</Badge>}
+      </motion.div>
+      <motion.p layout="position" className="mt-4 text-sm text-fg truncate">{sub.name}</motion.p>
+      <motion.p layout="position" className="mt-1 flex items-baseline gap-1">
+        <span className="serif text-[28px] leading-none">{formatMoney(sub.amount, currency)}</span>
+        <span className="text-xs text-muted">/{sub.billing_cycle === 'yearly' ? 'yr' : 'mo'}</span>
+      </motion.p>
+    </motion.button>
+  )
+}
+
+/** The selected card, morphed open in place of the grid. */
+function SubDetail({ sub, currency, onClose }) {
+  const { openSheet } = useSheets()
+  const toggle = useFinanceMutation(() => apiClient.put(`/api/subscriptions/${sub.id}`, { is_active: !sub.is_active }))
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  // Portal: the page sits in an isolated stacking context, so the overlay must render at the body.
+  return createPortal(
+    <>
+      <motion.div className="fixed inset-0 z-40 bg-black/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+      <div className="fixed inset-0 z-50 grid place-items-center p-4 pointer-events-none">
+        <motion.div
+          layoutId={`sub-card-${sub.id}`}
+          transition={spring.soft}
+          role="dialog"
+          aria-modal="true"
+          aria-label={sub.name}
+          className="pointer-events-auto w-full max-w-md rounded-[16px] border border-line bg-panel p-6 shadow-pop"
+        >
+          <motion.div layout="position" className="flex items-start justify-between">
+            <Monogram name={sub.name} size={52} />
+            <Button size="icon" variant="ghost" aria-label="Close" onClick={onClose} autoFocus><X size={16} /></Button>
+          </motion.div>
+          <motion.p layout="position" className="mt-4 text-base text-fg">{sub.name}</motion.p>
+          <motion.p layout="position" className="mt-1 flex items-baseline gap-1">
+            <span className="serif text-[44px] leading-none">{formatMoney(sub.amount, currency)}</span>
+            <span className="text-sm text-muted">/{sub.billing_cycle === 'yearly' ? 'year' : 'month'}</span>
+          </motion.p>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.12 } }} exit={{ opacity: 0 }}>
+            <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-[10px] bg-canvas/50 border border-line p-3">
+                <dt className="text-xs text-muted">Per month</dt>
+                <dd className="num mt-1">{formatMoney(monthlyCost(sub), currency)}</dd>
+              </div>
+              <div className="rounded-[10px] bg-canvas/50 border border-line p-3">
+                <dt className="text-xs text-muted">Per year</dt>
+                <dd className="num mt-1">{formatMoney(monthlyCost(sub) * 12, currency)}</dd>
+              </div>
+            </dl>
+            {sub.is_active && (
+              <div className="mt-4">
+                <p className="text-xs text-muted mb-2">Next renewals</p>
+                <ol className="space-y-1.5">
+                  {upcomingDates(sub).map((d, i) => (
+                    <li key={d} className="flex justify-between text-sm">
+                      <span className={i ? 'text-muted' : 'text-fg'}>{parseISODate(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      <span className="num text-muted">{i === 0 ? formatRelativeDays(d) : ''}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <div className="mt-6 flex gap-2">
+              <Button className="flex-1" loading={toggle.isPending} onClick={() => toggle.mutate(null, {
+                onSuccess: () => toast.success(sub.is_active ? `${sub.name} paused` : `${sub.name} resumed`),
+                onError: (err) => toast.error(errorMessage(err)),
+              })}>
+                {sub.is_active ? <><Pause size={14} aria-hidden="true" /> Pause</> : <><Play size={14} aria-hidden="true" /> Resume</>}
+              </Button>
+              <Button className="flex-1" onClick={() => { onClose(); openSheet('subscription', sub) }}><Pencil size={14} aria-hidden="true" /> Edit</Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
+    </>,
+    document.body,
+  )
+}
+
+const FILTERS = [{ value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }, { value: 'all', label: 'All' }]
+
+export default function Subscriptions() {
+  const currency = useCurrency()
+  const entrance = usePageEntrance()
+  const { openSheet } = useSheets()
+  const query = useSubscriptions()
+  const [day, setDay] = useState(null)
+  const [openId, setOpenId] = useState(null)
+  const [filter, setFilter] = useState({ value: 'active', dir: 1 })
+
+  return (
+    <motion.div {...entrance}>
+      <PageHeader
+        context="Recurring charges"
+        title="Subscriptions"
+        actions={<Button variant="primary" onClick={() => openSheet('subscription')}><Plus size={14} strokeWidth={2.4} aria-hidden="true" /> New subscription</Button>}
+      />
+      <QueryView query={query} loading={<Skeleton className="h-[520px]" />}>
+        {(subs) => {
+          if (!subs.length) {
+            return (
+              <Panel>
+                <EmptyState icon={Repeat} title="Track what renews"
+                  body="Add Netflix, Spotify, rent or insurance. You'll see renewals on a calendar and get a heads-up before each charge."
+                  action={<Button variant="primary" onClick={() => openSheet('subscription')}><Plus size={14} aria-hidden="true" /> New subscription</Button>} />
+              </Panel>
+            )
+          }
+          const shown = subs.filter((s) => filter.value === 'all' || (filter.value === 'active' ? s.is_active : !s.is_active))
+          const openSub = subs.find((s) => s.id === openId)
+          return (
+            <>
+              <Hero subs={subs} currency={currency} />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <Calendar subs={subs} selected={day} onSelect={setDay} />
+                <Upcoming subs={subs} currency={currency} selectedDay={day} onOpen={(s) => setOpenId(s.id)} />
+              </div>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm text-muted">Everything you pay for</h2>
+                <Segmented size="sm" label="Show" options={FILTERS} value={filter.value}
+                  onChange={(value) => setFilter((f) => ({ value, dir: directionOf(FILTERS, f.value, value) }))} />
+              </div>
+              <AnimatePresence mode="wait" custom={filter.dir} initial={false}>
+                <motion.div key={filter.value} custom={filter.dir} variants={tabContentVariants} initial="initial" animate="animate" exit="exit"
+                  className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {shown.map((s) => <SubCard key={s.id} sub={s} currency={currency} onOpen={(x) => setOpenId(x.id)} />)}
+                  {!shown.length && <p className="col-span-full text-sm text-muted py-8 text-center">Nothing here.</p>}
+                </motion.div>
+              </AnimatePresence>
+              <AnimatePresence>
+                {openSub && <SubDetail key={openSub.id} sub={openSub} currency={currency} onClose={() => setOpenId(null)} />}
+              </AnimatePresence>
+            </>
+          )
+        }}
+      </QueryView>
+    </motion.div>
   )
 }

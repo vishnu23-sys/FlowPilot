@@ -1,8 +1,9 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import Subscription
+from utils import ApiError, json_body, parse_amount, parse_date
 
 subscriptions_bp = Blueprint('subscriptions', __name__, url_prefix='/api/subscriptions')
 
@@ -59,23 +60,23 @@ def list_subscriptions():
 @jwt_required()
 def create_subscription():
     user_id = int(get_jwt_identity())
-    data = request.get_json()
+    data = json_body(request)
 
-    if not data or not data.get('name', '').strip():
-        return jsonify({'error': 'name is required'}), 400
-    if not data.get('amount'):
-        return jsonify({'error': 'amount is required'}), 400
+    if not str(data.get('name') or '').strip():
+        raise ApiError('name is required')
+    if data.get('amount') in (None, ''):
+        raise ApiError('amount is required')
     if not data.get('next_renewal_date'):
-        return jsonify({'error': 'next_renewal_date is required'}), 400
+        raise ApiError('next_renewal_date is required')
     if data.get('billing_cycle', 'monthly') not in VALID_CYCLES:
-        return jsonify({'error': 'billing_cycle must be monthly or yearly'}), 400
+        raise ApiError('billing_cycle must be monthly or yearly')
 
     sub = Subscription(
         user_id=user_id,
-        name=data['name'].strip(),
-        amount=float(data['amount']),
+        name=data['name'].strip()[:100],
+        amount=parse_amount(data['amount']),
         billing_cycle=data.get('billing_cycle', 'monthly'),
-        next_renewal_date=datetime.strptime(data['next_renewal_date'], '%Y-%m-%d').date(),
+        next_renewal_date=parse_date(data['next_renewal_date'], 'next_renewal_date'),
         is_active=bool(data.get('is_active', True)),
     )
     db.session.add(sub)
@@ -90,19 +91,21 @@ def update_subscription(sub_id):
     sub = db.session.get(Subscription, sub_id)
 
     if not sub or sub.user_id != user_id:
-        return jsonify({'error': 'Subscription not found'}), 404
+        raise ApiError('Subscription not found', 404)
 
-    data = request.get_json()
+    data = json_body(request)
     if data.get('name') is not None:
-        sub.name = data['name'].strip()
+        if not str(data['name']).strip():
+            raise ApiError('name is required')
+        sub.name = str(data['name']).strip()[:100]
     if data.get('amount') is not None:
-        sub.amount = float(data['amount'])
+        sub.amount = parse_amount(data['amount'])
     if data.get('billing_cycle') is not None:
         if data['billing_cycle'] not in VALID_CYCLES:
-            return jsonify({'error': 'Invalid billing_cycle'}), 400
+            raise ApiError('Invalid billing_cycle')
         sub.billing_cycle = data['billing_cycle']
     if data.get('next_renewal_date') is not None:
-        sub.next_renewal_date = datetime.strptime(data['next_renewal_date'], '%Y-%m-%d').date()
+        sub.next_renewal_date = parse_date(data['next_renewal_date'], 'next_renewal_date')
     if 'is_active' in data:
         sub.is_active = bool(data['is_active'])
 
@@ -117,7 +120,7 @@ def delete_subscription(sub_id):
     sub = db.session.get(Subscription, sub_id)
 
     if not sub or sub.user_id != user_id:
-        return jsonify({'error': 'Subscription not found'}), 404
+        raise ApiError('Subscription not found', 404)
 
     db.session.delete(sub)
     db.session.commit()

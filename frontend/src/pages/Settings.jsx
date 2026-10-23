@@ -1,344 +1,283 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { User, ShieldCheck, LogOut, CheckCircle, XCircle, AlertCircle, Check } from 'lucide-react'
+import { useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
-import AppLayout from '../components/AppLayout'
-import Card from '../components/ui/Card'
+import { Check, X, Sun, Moon, Monitor, Keyboard, LogOut } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
 import Button from '../components/ui/Button'
-import { Input, Select } from '../components/ui/Input'
-import apiClient from '../api/apiClient'
+import Segmented, { directionOf } from '../components/ui/Segmented'
+import { Field, Input, MoneyInput, Select } from '../components/ui/Input'
+import { Switch } from '../components/ui/Controls'
+import ShortcutsDialog from '../components/shell/ShortcutsDialog'
+import apiClient, { errorMessage } from '../api/apiClient'
+import { invalidateFinance } from '../api/queries'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
-
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR', 'AUD', 'CAD', 'SGD', 'AED']
+import { ACCENTS, usePreferences } from '../lib/preferences'
+import { CURRENCIES, currencySymbol } from '../lib/format'
+import { checkPassword } from '../lib/password'
+import { usePageEntrance } from '../lib/entrance'
+import { spring, tabContentVariants } from '../lib/motion'
 
 const TABS = [
-  { id: 'profile',  label: 'Profile',  icon: User        },
-  { id: 'security', label: 'Security', icon: ShieldCheck },
+  { value: 'profile', label: 'Profile' },
+  { value: 'preferences', label: 'Preferences' },
+  { value: 'security', label: 'Security' },
 ]
 
-function StatusBanner({ status }) {
-  if (!status) return null
-  const isOk = status.type === 'success'
+function Row({ title, description, children }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm ${
-        isOk ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-              : 'bg-red-500/10 border-red-500/20 text-red-400'
-      }`}
-    >
-      {isOk ? <CheckCircle size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
-      {status.message}
-    </motion.div>
-  )
-}
-
-function PasswordRule({ ok, label }) {
-  return (
-    <div className={`flex items-center gap-2 text-xs transition-colors ${ok ? 'text-emerald-400' : 'text-slate-600'}`}>
-      {ok ? <Check size={11} /> : <XCircle size={11} />}
-      {label}
+    <div className="grid gap-3 md:grid-cols-[240px_1fr] md:gap-8 py-5 first:pt-1 last:pb-1">
+      <div>
+        <p className="text-sm text-fg">{title}</p>
+        {description && <p className="text-xs text-muted mt-1 leading-relaxed">{description}</p>}
+      </div>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
 
-function checkPw(pw) {
-  return {
-    length:    pw.length >= 8,
-    uppercase: /[A-Z]/.test(pw),
-    special:   /[!@#$%^&*(),.?":{}|<>\-_+=\[\]\\;'`~]/.test(pw),
-  }
-}
+function ProfileTab() {
+  const { user, updateUser } = useAuth()
+  const qc = useQueryClient()
+  const [form, setForm] = useState({
+    full_name: user?.full_name || '',
+    monthly_income: user?.monthly_income != null ? String(user.monthly_income) : '',
+    currency: user?.currency || 'USD',
+  })
+  const [saving, setSaving] = useState(false)
+  const dirty = form.full_name !== (user?.full_name || '')
+    || form.monthly_income !== (user?.monthly_income != null ? String(user.monthly_income) : '')
+    || form.currency !== (user?.currency || 'USD')
 
-export default function Settings() {
-  const { user, updateUser, logout } = useAuth()
-  const navigate = useNavigate()
-  const [tab, setTab] = useState('profile')
-
-  // ── Profile state ─────────────────────────────────────────────
-  const initProfile = () => {
-    const parts = (user?.full_name || '').split(' ')
-    return {
-      first_name:     parts[0] || '',
-      last_name:      parts.slice(1).join(' ') || '',
-      monthly_income: user?.monthly_income != null ? String(user.monthly_income) : '',
-      currency:       user?.currency || 'USD',
-    }
-  }
-  const [profile, setProfile] = useState(initProfile)
-  const [profileStatus, setProfileStatus] = useState(null)
-  const [savingProfile, setSavingProfile] = useState(false)
-
-  // ── Security state ────────────────────────────────────────────
-  const [email, setEmail]       = useState(user?.email || '')
-  const [emailStatus, setEmailStatus] = useState(null)
-  const [savingEmail, setSavingEmail] = useState(false)
-
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
-  const [pwStatus, setPwStatus]   = useState(null)
-  const [savingPw, setSavingPw]   = useState(false)
-  const pwChecks = checkPw(pw.next)
-  const pwValid  = Object.values(pwChecks).every(Boolean)
-
-  // Refresh from API on mount (ensures fresh data)
-  useEffect(() => {
-    apiClient.get('/api/profile').then(r => {
-      const u = r.data.user
-      const parts = (u.full_name || '').split(' ')
-      setProfile({
-        first_name:     parts[0] || '',
-        last_name:      parts.slice(1).join(' ') || '',
-        monthly_income: u.monthly_income != null ? String(u.monthly_income) : '',
-        currency:       u.currency || 'USD',
-      })
-      setEmail(u.email || '')
-    }).catch(() => {})
-  }, [])
-
-  // ── Handlers ──────────────────────────────────────────────────
-  const handleProfileSave = async (e) => {
+  const save = async (e) => {
     e.preventDefault()
-    setSavingProfile(true); setProfileStatus(null)
+    if (!form.full_name.trim()) return toast.error('Enter your name')
+    setSaving(true)
     try {
-      const full_name = [profile.first_name, profile.last_name].filter(Boolean).join(' ')
-      if (!full_name) { setProfileStatus({ type: 'error', message: 'Name cannot be empty.' }); return }
-      const res = await apiClient.put('/api/profile', {
-        full_name,
-        currency: profile.currency,
-        monthly_income: profile.monthly_income === '' ? null : parseFloat(profile.monthly_income),
+      const { data } = await apiClient.put('/api/profile', {
+        full_name: form.full_name.trim(),
+        monthly_income: form.monthly_income === '' ? null : Number(form.monthly_income),
+        currency: form.currency,
       })
-      updateUser(res.data.user)
-      setProfileStatus({ type: 'success', message: 'Profile saved.' })
+      updateUser(data.user)
+      invalidateFinance(qc)
       toast.success('Profile saved')
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to save.'
-      setProfileStatus({ type: 'error', message: msg })
-      toast.error(msg)
-    } finally { setSavingProfile(false) }
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleEmailSave = async (e) => {
+  return (
+    <form onSubmit={save}>
+      <Panel bodyClassName="divide-y divide-line">
+        <Row title="Name" description="Shown in your greeting and account menu.">
+          <Input className="max-w-sm" value={form.full_name} maxLength={255} aria-label="Name"
+            onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
+        </Row>
+        <Row title="Expected monthly income" description="Used for any month where you haven't logged income. Leave blank if you log every payment.">
+          <div className="max-w-sm">
+            <MoneyInput symbol={currencySymbol(form.currency).trim()} placeholder="0" aria-label="Expected monthly income"
+              value={form.monthly_income} onChange={(e) => setForm((f) => ({ ...f, monthly_income: e.target.value }))} />
+          </div>
+        </Row>
+        <Row title="Currency" description="Changes the symbol shown everywhere. Amounts aren't converted.">
+          <div className="max-w-sm">
+            <Select aria-label="Currency" value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}>
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+        </Row>
+      </Panel>
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="primary" type="submit" loading={saving} disabled={!dirty}>Save profile</Button>
+      </div>
+    </form>
+  )
+}
+
+const ACCENT_SWATCH = { lime: '#C5F23A', vermilion: '#FF7054', teal: '#3DD6B5' }
+
+function PreferencesTab() {
+  const { prefs, update, setTheme, setAccent } = usePreferences()
+  const [shortcuts, setShortcuts] = useState(false)
+  return (
+    <Panel bodyClassName="divide-y divide-line">
+      <Row title="Theme" description="Match your system, or pick one.">
+        <Segmented
+          label="Theme"
+          value={prefs.theme}
+          onChange={(t, e) => {
+            const r = e?.currentTarget.getBoundingClientRect()
+            setTheme(t, r && { x: r.left + r.width / 2, y: r.top + r.height / 2 })
+          }}
+          options={[
+            { value: 'system', label: <span className="flex items-center gap-1.5"><Monitor size={13} aria-hidden="true" />System</span> },
+            { value: 'light', label: <span className="flex items-center gap-1.5"><Sun size={13} aria-hidden="true" />Light</span> },
+            { value: 'dark', label: <span className="flex items-center gap-1.5"><Moon size={13} aria-hidden="true" />Dark</span> },
+          ]}
+        />
+      </Row>
+      <Row title="Accent colour" description="Used for highlights, the primary button and your main figures.">
+        <div className="flex flex-wrap items-center gap-4">
+          <div role="radiogroup" aria-label="Accent colour" className="flex gap-2">
+            {ACCENTS.map((a) => (
+              <button key={a} type="button" role="radio" aria-checked={prefs.accent === a} aria-label={a}
+                onClick={() => setAccent(a)}
+                className="relative h-9 w-9 rounded-full border border-line grid place-items-center"
+                style={{ backgroundColor: ACCENT_SWATCH[a] }}>
+                {prefs.accent === a && (
+                  <motion.span layoutId="accent-check" transition={spring.snappy} className="absolute -inset-1 rounded-full border-2 border-fg" />
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 rounded-[10px] border border-line bg-canvas/50 px-4 py-2.5" aria-hidden="true">
+            <span className="serif text-[28px] leading-none text-accent">72</span>
+            <div className="w-24 h-1.5 rounded-full bg-fg/10 overflow-hidden"><div className="h-full w-2/3 bg-accent" /></div>
+            <span className="h-7 px-2.5 rounded-control bg-accent text-on-accent text-xs grid place-items-center">Button</span>
+          </div>
+        </div>
+      </Row>
+      <Row title="Sidebar" description="How the sidebar starts on wide screens. Ctrl B switches any time.">
+        <Segmented label="Sidebar" value={prefs.sidebar} onChange={(sidebar) => update({ sidebar })}
+          options={[{ value: 'expanded', label: 'Expanded' }, { value: 'rail', label: 'Icons only' }]} />
+      </Row>
+      <Row title="Reduce motion" description="Replaces slides and morphs with simple fades. Your system setting is always respected.">
+        <Switch checked={prefs.reduceMotion === 'on'} onCheckedChange={(v) => update({ reduceMotion: v ? 'on' : 'system' })} label="Reduce motion" />
+      </Row>
+      <Row title="Keyboard shortcuts" description="Press ? anywhere to see them.">
+        <Button onClick={() => setShortcuts(true)}><Keyboard size={14} aria-hidden="true" /> Show shortcuts</Button>
+        <ShortcutsDialog open={shortcuts} onOpenChange={setShortcuts} />
+      </Row>
+    </Panel>
+  )
+}
+
+function Rules({ password }) {
+  const { results, score, label } = checkPassword(password)
+  const colors = ['rgb(var(--danger))', 'rgb(var(--danger))', 'rgb(var(--warning))', 'rgb(var(--accent))', 'rgb(var(--success))']
+  return (
+    <div className="mt-2.5 space-y-2" aria-live="polite">
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 gap-1">
+          {[1, 2, 3, 4].map((i) => (
+            <motion.span key={i} className="h-1 flex-1 rounded-full" initial={false}
+              animate={{ backgroundColor: i <= score ? colors[score] : 'rgb(var(--fg) / 0.1)' }} />
+          ))}
+        </div>
+        <span className="text-xs text-muted w-16 text-right">{password ? label : ''}</span>
+      </div>
+      <ul className="space-y-1">
+        {results.map((r) => (
+          <li key={r.id} className={`flex items-center gap-1.5 text-xs transition-colors ${r.ok ? 'text-success' : 'text-muted'}`}>
+            {r.ok ? <Check size={12} aria-hidden="true" /> : <X size={12} aria-hidden="true" />}{r.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function SecurityTab() {
+  const { user, updateUser, logout } = useAuth()
+  const navigate = useNavigate()
+  const [email, setEmail] = useState(user?.email || '')
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+  const [saving, setSaving] = useState(null)
+
+  const saveEmail = async (e) => {
     e.preventDefault()
-    setSavingEmail(true); setEmailStatus(null)
+    setSaving('email')
     try {
-      const res = await apiClient.put('/api/profile', { email })
-      updateUser(res.data.user)
-      setEmailStatus({ type: 'success', message: 'Email updated.' })
+      const { data } = await apiClient.put('/api/profile', { email })
+      updateUser(data.user)
       toast.success('Email updated')
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to update email.'
-      setEmailStatus({ type: 'error', message: msg })
-      toast.error(msg)
-    } finally { setSavingEmail(false) }
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(null)
+    }
   }
 
-  const handlePwSave = async (e) => {
+  const savePassword = async (e) => {
     e.preventDefault()
-    if (!pwValid) { setPwStatus({ type: 'error', message: 'Password does not meet all requirements.' }); return }
-    if (pw.next !== pw.confirm) { setPwStatus({ type: 'error', message: 'Passwords do not match.' }); return }
-    setSavingPw(true); setPwStatus(null)
+    if (!checkPassword(pw.next).valid) return toast.error('The new password needs to meet every rule')
+    if (pw.next !== pw.confirm) return toast.error("The new passwords don't match")
+    setSaving('password')
     try {
       await apiClient.put('/api/profile/password', { current_password: pw.current, new_password: pw.next })
-      setPwStatus({ type: 'success', message: 'Password changed successfully.' })
       setPw({ current: '', next: '', confirm: '' })
       toast.success('Password changed')
     } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to change password.'
-      setPwStatus({ type: 'error', message: msg })
-      toast.error(msg)
-    } finally { setSavingPw(false) }
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(null)
+    }
   }
 
-  const handleLogout = () => { logout(); navigate('/login') }
+  return (
+    <div className="space-y-4">
+      <Panel bodyClassName="divide-y divide-line">
+        <Row title="Email" description="Used to log in.">
+          <form onSubmit={saveEmail} className="flex gap-2 max-w-md">
+            <Input type="email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            <Button type="submit" loading={saving === 'email'} disabled={email === user?.email}>Update</Button>
+          </form>
+        </Row>
+        <Row title="Password" description="You'll stay logged in on this device after changing it.">
+          <form onSubmit={savePassword} className="space-y-3 max-w-md">
+            <Field label="Current password">
+              {(a) => <Input {...a} type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))} />}
+            </Field>
+            <Field label="New password">
+              {(a) => <Input {...a} type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))} />}
+            </Field>
+            {pw.next && <Rules password={pw.next} />}
+            <Field label="Repeat new password" error={pw.confirm && pw.confirm !== pw.next ? "Doesn't match" : null}>
+              {(a) => <Input {...a} type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))} />}
+            </Field>
+            <Button type="submit" variant="primary" loading={saving === 'password'} disabled={!pw.current || !pw.next}>Change password</Button>
+          </form>
+        </Row>
+      </Panel>
+      <Panel bodyClassName="divide-y divide-line">
+        <Row title="Log out" description="Ends your session on this device.">
+          <Button variant="danger" onClick={() => { logout(); navigate('/login') }}><LogOut size={14} aria-hidden="true" /> Log out</Button>
+        </Row>
+      </Panel>
+    </div>
+  )
+}
 
-  const initials = user?.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || '?'
+export default function Settings() {
+  const entrance = usePageEntrance()
+  const [params, setParams] = useSearchParams()
+  const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'profile'
+  const [dir, setDir] = useState(1)
 
   return (
-    <AppLayout>
-      <div className="mb-7">
-        <h1 className="text-xl font-semibold text-white">Settings</h1>
-        <p className="text-sm text-slate-600 mt-0.5">Manage your profile, security, and preferences</p>
+    <motion.div {...entrance}>
+      <PageHeader
+        context="Your account and how FlowPilot looks"
+        title="Settings"
+        actions={<Segmented label="Section" options={TABS} value={tab} onChange={(t) => {
+          setDir(directionOf(TABS, tab, t))
+          setParams(t === 'profile' ? {} : { tab: t }, { replace: true })
+        }} />}
+      />
+      <div className="max-w-4xl">
+        <AnimatePresence mode="wait" custom={dir} initial={false}>
+          <motion.div key={tab} custom={dir} variants={tabContentVariants} initial="initial" animate="animate" exit="exit">
+            {tab === 'profile' && <ProfileTab />}
+            {tab === 'preferences' && <PreferencesTab />}
+            {tab === 'security' && <SecurityTab />}
+          </motion.div>
+        </AnimatePresence>
       </div>
-
-      <div className="flex gap-5 flex-col md:flex-row">
-        {/* Left panel */}
-        <div className="md:w-56 shrink-0">
-          <Card delay={0.1} className="p-4">
-            {/* Avatar */}
-            <div className="flex flex-col items-center py-4 border-b border-white/[0.06] mb-3">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold mb-2">
-                {initials}
-              </div>
-              <p className="text-sm font-medium text-white text-center">{user?.full_name}</p>
-              <p className="text-xs text-slate-600 text-center mt-0.5 truncate max-w-full">{user?.email}</p>
-            </div>
-
-            {/* Tab nav */}
-            <nav className="space-y-0.5 mb-3">
-              {TABS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                    tab === id
-                      ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
-                      : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
-                  }`}
-                >
-                  <Icon size={14} />
-                  {label}
-                </button>
-              ))}
-            </nav>
-
-            {/* Logout */}
-            <div className="pt-3 border-t border-white/[0.06]">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-all"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right panel */}
-        <div className="flex-1 min-w-0">
-          <AnimatePresence mode="wait">
-            {tab === 'profile' && (
-              <motion.div key="profile" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-                <Card delay={0}>
-                  <p className="text-sm font-medium text-slate-300 mb-5">Profile information</p>
-                  <form onSubmit={handleProfileSave} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1.5">First name</label>
-                        <Input
-                          value={profile.first_name}
-                          onChange={e => { setProfile(p => ({ ...p, first_name: e.target.value })); setProfileStatus(null) }}
-                          placeholder="First name"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1.5">Last name</label>
-                        <Input
-                          value={profile.last_name}
-                          onChange={e => { setProfile(p => ({ ...p, last_name: e.target.value })); setProfileStatus(null) }}
-                          placeholder="Last name"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1.5">
-                          Monthly income
-                          {!profile.monthly_income && <span className="ml-1 text-amber-500/80">← unlocks health score</span>}
-                        </label>
-                        <Input
-                          type="number" min="0" step="0.01"
-                          value={profile.monthly_income}
-                          onChange={e => { setProfile(p => ({ ...p, monthly_income: e.target.value })); setProfileStatus(null) }}
-                          placeholder="e.g. 3000"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1.5">Currency</label>
-                        <Select
-                          value={profile.currency}
-                          onChange={e => { setProfile(p => ({ ...p, currency: e.target.value })); setProfileStatus(null) }}
-                        >
-                          {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </Select>
-                      </div>
-                    </div>
-
-                    <StatusBanner status={profileStatus} />
-
-                    <Button type="submit" disabled={savingProfile} className="w-full">
-                      {savingProfile ? 'Saving...' : 'Save profile'}
-                    </Button>
-                  </form>
-                </Card>
-              </motion.div>
-            )}
-
-            {tab === 'security' && (
-              <motion.div key="security" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }} className="space-y-4">
-                {/* Change email */}
-                <Card delay={0}>
-                  <p className="text-sm font-medium text-slate-300 mb-4">Email address</p>
-                  <form onSubmit={handleEmailSave} className="space-y-3">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1.5">Email</label>
-                      <Input
-                        type="email"
-                        value={email}
-                        onChange={e => { setEmail(e.target.value); setEmailStatus(null) }}
-                        required
-                        placeholder="you@example.com"
-                      />
-                    </div>
-                    <StatusBanner status={emailStatus} />
-                    <Button type="submit" disabled={savingEmail} className="w-full">
-                      {savingEmail ? 'Updating...' : 'Update email'}
-                    </Button>
-                  </form>
-                </Card>
-
-                {/* Change password */}
-                <Card delay={0.1}>
-                  <p className="text-sm font-medium text-slate-300 mb-4">Change password</p>
-                  <form onSubmit={handlePwSave} className="space-y-3">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1.5">Current password</label>
-                      <Input
-                        type="password"
-                        value={pw.current}
-                        onChange={e => { setPw(p => ({ ...p, current: e.target.value })); setPwStatus(null) }}
-                        required placeholder="••••••••"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1.5">New password</label>
-                      <Input
-                        type="password"
-                        value={pw.next}
-                        onChange={e => { setPw(p => ({ ...p, next: e.target.value })); setPwStatus(null) }}
-                        required placeholder="••••••••"
-                      />
-                      {pw.next && (
-                        <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          <PasswordRule ok={pwChecks.length}    label="8+ characters" />
-                          <PasswordRule ok={pwChecks.uppercase} label="Uppercase letter" />
-                          <PasswordRule ok={pwChecks.special}   label="Special character" />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1.5">Confirm new password</label>
-                      <Input
-                        type="password"
-                        value={pw.confirm}
-                        onChange={e => { setPw(p => ({ ...p, confirm: e.target.value })); setPwStatus(null) }}
-                        required placeholder="••••••••"
-                      />
-                    </div>
-                    <StatusBanner status={pwStatus} />
-                    <Button type="submit" disabled={savingPw || !pwValid} variant="ghost" className="w-full">
-                      {savingPw ? 'Updating...' : 'Change password'}
-                    </Button>
-                  </form>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    </AppLayout>
+    </motion.div>
   )
 }

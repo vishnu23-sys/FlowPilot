@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from extensions import db
 from models import Debt
+from utils import ApiError, json_body, parse_amount
 
 debts_bp = Blueprint('debts', __name__, url_prefix='/api/debts')
 
@@ -44,21 +45,21 @@ def list_debts():
 @jwt_required()
 def create_debt():
     user_id = int(get_jwt_identity())
-    data = request.get_json()
+    data = json_body(request)
 
-    if not data or not data.get('person_name', '').strip():
-        return jsonify({'error': 'person_name is required'}), 400
-    if not data.get('amount'):
-        return jsonify({'error': 'amount is required'}), 400
+    if not str(data.get('person_name') or '').strip():
+        raise ApiError('person_name is required')
+    if data.get('amount') in (None, ''):
+        raise ApiError('amount is required')
     if data.get('type') not in VALID_TYPES:
-        return jsonify({'error': 'type must be owed_to_me or i_owe'}), 400
+        raise ApiError('type must be owed_to_me or i_owe')
 
     debt = Debt(
         user_id=user_id,
-        person_name=data['person_name'].strip(),
-        amount=float(data['amount']),
+        person_name=data['person_name'].strip()[:100],
+        amount=parse_amount(data['amount']),
         type=data['type'],
-        description=data.get('description', ''),
+        description=(data.get('description') or '').strip()[:255],
     )
     db.session.add(debt)
     db.session.commit()
@@ -72,19 +73,21 @@ def update_debt(debt_id):
     debt = db.session.get(Debt, debt_id)
 
     if not debt or debt.user_id != user_id:
-        return jsonify({'error': 'Debt not found'}), 404
+        raise ApiError('Debt not found', 404)
 
-    data = request.get_json()
+    data = json_body(request)
     if data.get('person_name') is not None:
-        debt.person_name = data['person_name'].strip()
+        if not str(data['person_name']).strip():
+            raise ApiError('person_name is required')
+        debt.person_name = str(data['person_name']).strip()[:100]
     if data.get('amount') is not None:
-        debt.amount = float(data['amount'])
+        debt.amount = parse_amount(data['amount'])
     if data.get('type') is not None:
         if data['type'] not in VALID_TYPES:
-            return jsonify({'error': 'Invalid type'}), 400
+            raise ApiError('Invalid type')
         debt.type = data['type']
     if 'description' in data:
-        debt.description = data['description']
+        debt.description = (data['description'] or '').strip()[:255]
     if 'is_settled' in data:
         debt.is_settled = bool(data['is_settled'])
 
@@ -99,7 +102,7 @@ def delete_debt(debt_id):
     debt = db.session.get(Debt, debt_id)
 
     if not debt or debt.user_id != user_id:
-        return jsonify({'error': 'Debt not found'}), 404
+        raise ApiError('Debt not found', 404)
 
     db.session.delete(debt)
     db.session.commit()

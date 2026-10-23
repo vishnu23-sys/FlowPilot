@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import func
 from extensions import db
 from models import Expense
+from utils import ApiError, json_body, parse_amount, parse_date, add_months, month_bounds
 
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/api/expenses')
 
@@ -13,38 +13,57 @@ VALID_CATEGORIES = {
 }
 
 
+def _daily_series(expenses, first, last_day):
+    """Cumulative spend per day of month, 1..last_day."""
+    per_day = {}
+    for e in expenses:
+        per_day[e.date.day] = per_day.get(e.date.day, 0.0) + e.amount
+    running, series = 0.0, []
+    for day in range(1, last_day + 1):
+        running += per_day.get(day, 0.0)
+        series.append({'day': day, 'total': round(running, 2)})
+    return series
+
+
 @expenses_bp.route('/summary', methods=['GET'])
 @jwt_required()
 def summary():
     user_id = int(get_jwt_identity())
     today = date.today()
     first_of_month = today.replace(day=1)
+    prev_first, prev_last = month_bounds(add_months(today, -1))
 
-    monthly_total = db.session.query(func.sum(Expense.amount)).filter(
+    this_month = Expense.query.filter(
         Expense.user_id == user_id,
         Expense.date >= first_of_month,
         Expense.date <= today,
-    ).scalar() or 0.0
-
-    by_category = db.session.query(
-        Expense.category,
-        func.sum(Expense.amount).label('total'),
-    ).filter(
+    ).all()
+    prev_month = Expense.query.filter(
         Expense.user_id == user_id,
-        Expense.date >= first_of_month,
-        Expense.date <= today,
-    ).group_by(Expense.category).all()
+        Expense.date >= prev_first,
+        Expense.date <= prev_last,
+    ).all()
+
+    by_cat = {}
+    for e in this_month:
+        by_cat[e.category] = by_cat.get(e.category, 0.0) + e.amount
 
     recent = (
         Expense.query.filter_by(user_id=user_id)
         .order_by(Expense.date.desc(), Expense.id.desc())
-        .limit(5)
+        .limit(6)
         .all()
     )
 
     return jsonify({
-        'monthly_total': float(monthly_total),
-        'by_category': [{'category': c, 'total': float(t)} for c, t in by_category],
+        'monthly_total': round(sum(e.amount for e in this_month), 2),
+        'previous_month_total': round(sum(e.amount for e in prev_month), 2),
+        'by_category': [
+            {'category': c, 'total': round(t, 2)}
+            for c, t in sorted(by_cat.items(), key=lambda x: -x[1])
+        ],
+        'daily': _daily_series(this_month, first_of_month, today.day),
+        'previous_daily': _daily_series(prev_month, prev_first, prev_last.day),
         'recent_transactions': [e.to_dict() for e in recent],
     })
 
@@ -61,35 +80,39 @@ def list_expenses():
 
     from_date = request.args.get('from')
     if from_date:
-        query = query.filter(Expense.date >= datetime.strptime(from_date, '%Y-%m-%d').date())
+        query = query.filter(Expense.date >= parse_date(from_date, 'from'))
 
     to_date = request.args.get('to')
     if to_date:
-        query = query.filter(Expense.date <= datetime.strptime(to_date, '%Y-%m-%d').date())
+        query = query.filter(Expense.date <= parse_date(to_date, 'to'))
 
     expenses = query.order_by(Expense.date.desc(), Expense.id.desc()).all()
     return jsonify({'expenses': [e.to_dict() for e in expenses]})
+
+
+def _validate_category(category):
+    if category not in VALID_CATEGORIES:
+        raise ApiError('Invalid category')
+    return category
 
 
 @expenses_bp.route('', methods=['POST'])
 @jwt_required()
 def create_expense():
     user_id = int(get_jwt_identity())
-    data = request.get_json()
+    data = json_body(request)
 
-    if not data or not data.get('amount') or not data.get('category') or not data.get('date'):
-        return jsonify({'error': 'amount, category, and date are required'}), 400
-
-    if data['category'] not in VALID_CATEGORIES:
-        return jsonify({'error': 'Invalid category'}), 400
+    for field in ('amount', 'category', 'date'):
+        if data.get(field) in (None, ''):
+            raise ApiError('amount, category, and date are required')
 
     expense = Expense(
         user_id=user_id,
-        amount=float(data['amount']),
-        category=data['category'],
-        date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
-        description=data.get('description', ''),
-        payment_method=data.get('payment_method', ''),
+        amount=parse_amount(data['amount']),
+        category=_validate_category(data['category']),
+        date=parse_date(data['date']),
+        description=(data.get('description') or '').strip()[:255],
+        payment_method=(data.get('payment_method') or '')[:50],
         is_recurring=bool(data.get('is_recurring', False)),
     )
     db.session.add(expense)
@@ -104,21 +127,19 @@ def update_expense(expense_id):
     expense = db.session.get(Expense, expense_id)
 
     if not expense or expense.user_id != user_id:
-        return jsonify({'error': 'Expense not found'}), 404
+        raise ApiError('Expense not found', 404)
 
-    data = request.get_json()
+    data = json_body(request)
     if data.get('amount') is not None:
-        expense.amount = float(data['amount'])
+        expense.amount = parse_amount(data['amount'])
     if data.get('category'):
-        if data['category'] not in VALID_CATEGORIES:
-            return jsonify({'error': 'Invalid category'}), 400
-        expense.category = data['category']
+        expense.category = _validate_category(data['category'])
     if data.get('date'):
-        expense.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        expense.date = parse_date(data['date'])
     if 'description' in data:
-        expense.description = data['description']
+        expense.description = (data['description'] or '').strip()[:255]
     if 'payment_method' in data:
-        expense.payment_method = data['payment_method']
+        expense.payment_method = (data['payment_method'] or '')[:50]
     if 'is_recurring' in data:
         expense.is_recurring = bool(data['is_recurring'])
 
@@ -133,8 +154,20 @@ def delete_expense(expense_id):
     expense = db.session.get(Expense, expense_id)
 
     if not expense or expense.user_id != user_id:
-        return jsonify({'error': 'Expense not found'}), 404
+        raise ApiError('Expense not found', 404)
 
     db.session.delete(expense)
     db.session.commit()
     return jsonify({'message': 'Deleted'})
+
+
+@expenses_bp.route('/bulk-delete', methods=['POST'])
+@jwt_required()
+def bulk_delete():
+    user_id = int(get_jwt_identity())
+    ids = json_body(request).get('ids')
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, int) for i in ids):
+        raise ApiError('ids must be a non-empty list of expense ids')
+    deleted = Expense.query.filter(Expense.user_id == user_id, Expense.id.in_(ids)).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'deleted': deleted})
