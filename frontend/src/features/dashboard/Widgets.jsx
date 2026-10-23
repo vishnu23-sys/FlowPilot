@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { Plus, Banknote, Target, Repeat, ChevronLeft, ChevronRight, Lightbulb, PiggyBank, Receipt, CheckCircle2 } from 'lucide-react'
 import Panel from '../../components/ui/Panel'
 import { ProgressBar, Gauge } from '../../components/ui/Progress'
+import ShakeWhen from '../../components/ui/ShakeWhen'
 import { EmptyState } from '../../components/ui/States'
 import { Skeleton, RowsSkeleton } from '../../components/ui/Skeleton'
 import { AttentionList } from '../../components/shell/Topbar'
@@ -11,6 +12,7 @@ import ExpenseRow from '../expenses/ExpenseRow'
 import { categoryColor } from '../../lib/categories'
 import { formatDayLabel, formatMoney, formatPercent } from '../../lib/format'
 import { spring, staggerItem, tabContentVariants } from '../../lib/motion'
+import { lift } from '../../lib/interactions'
 import { useSheets } from '../../lib/sheets'
 
 export function QuickActions() {
@@ -25,10 +27,13 @@ export function QuickActions() {
   return (
     <motion.div variants={staggerItem} className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
       {actions.map(({ label, icon: Icon, run, hint }) => (
-        <button
+        <motion.button
           key={label}
           type="button"
           onClick={run}
+          whileHover={lift.hover}
+          whileTap={lift.tap}
+          transition={lift.transition}
           className="group flex items-center gap-3 rounded-[10px] border border-dashed border-line-strong px-3 py-2.5 text-sm text-muted
             hover:border-solid hover:border-accent/50 hover:text-fg hover:bg-accent/[0.04] transition-colors text-left"
         >
@@ -37,7 +42,7 @@ export function QuickActions() {
           </span>
           <span className="flex-1">{label}</span>
           {hint && <span className="hidden lg:inline text-2xs font-mono text-faint">{hint}</span>}
-        </button>
+        </motion.button>
       ))}
     </motion.div>
   )
@@ -140,7 +145,9 @@ export function BudgetsPanel({ query, currency }) {
                     <span className="text-muted"> / {formatMoney(b.monthly_limit, currency)}</span>
                   </span>
                 </div>
-                <ProgressBar value={b.pct} color={tone} label={`${b.category} budget used`} marker={monthElapsed()} />
+                <ShakeWhen active={b.status === 'over'}>
+                  <ProgressBar value={b.pct} color={tone} label={`${b.category} budget used`} marker={monthElapsed()} />
+                </ShakeWhen>
               </li>
             )
           })}
@@ -208,7 +215,22 @@ export function InsightsPanel({ query }) {
       {query.isPending ? <Skeleton className="h-32" /> : current ? (
         <div className="relative min-h-[150px] overflow-hidden" aria-live="polite">
           <AnimatePresence mode="popLayout" custom={state.dir} initial={false}>
-            <motion.div key={state.index} custom={state.dir} variants={tabContentVariants} initial="initial" animate="animate" exit="exit">
+            <motion.div
+              key={state.index}
+              custom={state.dir}
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              drag={items.length > 1 ? 'x' : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.45}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -50 || info.velocity.x < -500) go(1)
+                else if (info.offset.x > 50 || info.velocity.x > 500) go(-1)
+              }}
+              className="cursor-grab active:cursor-grabbing touch-pan-y select-none"
+            >
               <p className={`text-xs mb-3 ${INSIGHT_TONE[current.type]}`}>
                 {current.type === 'warning' ? 'Worth a look' : current.type === 'positive' ? 'Going well' : 'Pattern'}
               </p>

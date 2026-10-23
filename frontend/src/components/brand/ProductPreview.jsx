@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useMotionTemplate } from 'motion/react'
+import { useTilt } from '../../lib/interactions'
 import { ResponsiveContainer, AreaChart, Area } from 'recharts'
 import RollingNumber from '../ui/RollingNumber'
 import { CategoryIcon } from '../ui/Pill'
@@ -40,10 +41,13 @@ export default function ProductPreview() {
   }, [reduceMotion])
   const m = MONTHS[i]
   const curve = m.curve.map((v, x) => ({ x, v }))
+  const tilt = useTilt({ max: 6 })
+  const shine = useMotionTemplate`radial-gradient(420px circle at ${tilt.shineX} ${tilt.shineY}, rgb(var(--fg) / 0.07), transparent 60%)`
 
   return (
-    <div className="relative rounded-[16px] border border-line bg-panel/90 backdrop-blur shadow-pop overflow-hidden text-left" role="img"
+    <motion.div ref={tilt.ref} style={tilt.style} className="relative rounded-[16px] border border-line bg-panel/90 backdrop-blur shadow-pop overflow-hidden text-left will-change-transform" role="img"
       aria-label="FlowPilot dashboard preview with sample data">
+      <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10" style={{ background: shine }} />
       <div className="flex items-center gap-1.5 border-b border-line px-4 h-9">
         <span className="h-2.5 w-2.5 rounded-full bg-fg/15" /><span className="h-2.5 w-2.5 rounded-full bg-fg/15" /><span className="h-2.5 w-2.5 rounded-full bg-fg/15" />
         <span className="ml-3 text-2xs text-muted font-mono">flowpilot / home</span>
@@ -99,6 +103,6 @@ export default function ProductPreview() {
           </AnimatePresence>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

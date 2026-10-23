@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import Contours from './Contours'
 import Logo from '../shell/Logo'
 import { usePreferences } from '../../lib/preferences'

@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // Vendor libraries change rarely; keeping them in their own chunks lets browsers cache them across deploys.
 const VENDOR_CHUNKS = {
   react: ['react', 'react-dom', 'react-router-dom', 'react-router'],
-  motion: ['framer-motion'],
+  motion: ['motion', 'framer-motion', 'motion-dom', 'motion-utils'],
   ui: ['@radix-ui', 'cmdk', 'react-hot-toast', 'lucide-react'],
   data: ['@tanstack/react-query', 'axios'],
 }

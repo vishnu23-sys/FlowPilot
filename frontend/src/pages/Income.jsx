@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { Plus, Banknote, Repeat } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
@@ -18,6 +18,7 @@ import { formatCompact, formatDayLabel, formatMoney, formatPercent, parseISODate
 import { usePageEntrance } from '../lib/entrance'
 import { useSheets } from '../lib/sheets'
 import { staggerItem } from '../lib/motion'
+import Reveal from '../components/charts/Reveal'
 
 function Hero({ summary, spent, expected, currency, loading }) {
   if (loading) return <Skeleton className="h-36 mb-4" />
@@ -26,7 +27,7 @@ function Hero({ summary, spent, expected, currency, loading }) {
   const saved = income - spent
   const rate = income > 0 ? (saved / income) * 100 : null
   return (
-    <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+    <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
       <div className="p-5 md:p-6">
         <p className="text-sm text-muted">Received this month</p>
         <p className="serif text-[48px] leading-none mt-2"><RollingNumber value={formatMoney(thisMonth, currency, { decimals: 0 })} /></p>
@@ -63,7 +64,7 @@ function IncomeVsSpending({ income, spending, currency }) {
   const Tip = useMemo(() => makeTooltip({ format: (v) => formatMoney(v, currency), labels: { income: 'Income', spending: 'Spending' } }), [currency])
   return (
     <Panel className="lg:col-span-2" title="In and out, last 6 months">
-      <div className="h-[240px] -ml-2">
+      <Reveal className="h-[240px] -ml-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barGap={4} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid {...gridProps} />
@@ -74,7 +75,7 @@ function IncomeVsSpending({ income, spending, currency }) {
             <Bar dataKey="spending" fill="rgb(var(--fg) / 0.22)" radius={[4, 4, 0, 0]} maxBarSize={22} {...chartAnimation} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </Reveal>
       <div className="flex gap-4 text-xs text-muted mt-2">
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-accent" aria-hidden="true" />Income</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-fg/25" aria-hidden="true" />Spending</span>

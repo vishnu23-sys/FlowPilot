@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import toast from 'react-hot-toast'
 import { X, Check, Pencil } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import RollingNumber from '../components/ui/RollingNumber'
 import { CategoryIcon, Badge } from '../components/ui/Pill'
 import { ProgressBar } from '../components/ui/Progress'
+import ShakeWhen from '../components/ui/ShakeWhen'
 import { Tooltip } from '../components/ui/Controls'
 import { Skeleton } from '../components/ui/Skeleton'
 import { ErrorState } from '../components/ui/States'
@@ -109,7 +110,9 @@ function BudgetRow({ category, budget, spent, currency, elapsed }) {
       </div>
       {budget && (
         <div className="mt-3 pl-[46px]">
-          <ProgressBar value={budget.pct} color={tone} marker={elapsed} label={`${category.id} budget used`} />
+          <ShakeWhen active={status === 'over'}>
+            <ProgressBar value={budget.pct} color={tone} marker={elapsed} label={`${category.id} budget used`} />
+          </ShakeWhen>
           <div className="flex justify-between text-2xs text-muted mt-1.5">
             <span className="num">{Math.round(budget.pct * 100)}% used</span>
             <span>Month-end at this pace <span className="num text-fg">{formatMoney(budget.projected, currency)}</span></span>
@@ -147,7 +150,7 @@ export default function Budgets() {
       ) : (
         <>
           {totalLimit > 0 && (
-            <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+            <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
               <div className="p-5 md:p-6">
                 <p className="text-sm text-muted">{remaining >= 0 ? 'Left across budgets' : 'Over across budgets'}</p>
                 <p className={`serif text-[48px] leading-none mt-2 ${remaining < 0 ? 'text-danger' : ''}`}>

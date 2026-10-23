@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { CATEGORIES, INCOME_SOURCES, categoryColor, sourceColor } from '../../lib/categories'
 import { toISODate } from '../../lib/format'
 import { spring } from '../../lib/motion'

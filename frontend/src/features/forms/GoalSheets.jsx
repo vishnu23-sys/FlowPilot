@@ -10,6 +10,7 @@ import { useFinanceMutation } from '../../api/queries'
 import { useCurrency } from '../../context/AuthContext'
 import { GOAL_COLORS } from '../../lib/categories'
 import { currencySymbol, formatMoney, todayISO } from '../../lib/format'
+import { celebratedGoals } from '../../lib/interactions'
 
 const blank = () => ({ name: '', target_amount: '', target_date: '', color: 'accent', initial_amount: '' })
 
@@ -148,6 +149,7 @@ export function ContributionSheet({ open, goal, onClose }) {
     if (err) return setError(err)
     save.mutate({ ...form, amount: Number(form.amount) }, {
       onSuccess: ({ data }) => {
+        if (data.goal.is_complete) celebratedGoals.mark(goal.id)
         toast.success(data.goal.is_complete
           ? `${goal.name} is fully funded`
           : `Added ${formatMoney(form.amount, currency)} to ${goal.name}`)

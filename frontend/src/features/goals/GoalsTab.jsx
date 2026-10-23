@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
 import { Plus, Pencil, ChevronDown, Trash2, Target, CalendarClock } from 'lucide-react'
 import Panel from '../../components/ui/Panel'
@@ -15,6 +15,8 @@ import { GOAL_COLORS } from '../../lib/categories'
 import { formatMoney, formatShortDate, parseISODate } from '../../lib/format'
 import { useSheets } from '../../lib/sheets'
 import { dur, ease, staggerItem } from '../../lib/motion'
+import { celebratedGoals, lift, useSignal } from '../../lib/interactions'
+import Burst from '../../components/ui/Burst'
 
 function History({ goal, currency }) {
   const remove = useFinanceMutation((id) => apiClient.delete(`/api/goals/${goal.id}/contributions/${id}`))
@@ -43,12 +45,20 @@ function GoalCard({ goal, currency }) {
   const { openSheet } = useSheets()
   const [open, setOpen] = useState(false)
   const color = GOAL_COLORS[goal.color] || GOAL_COLORS.accent
+  const celebrate = useSignal(celebratedGoals, goal.id)
   return (
-    <motion.article layout="position" variants={staggerItem} className="rounded-panel border border-line bg-panel p-5 flex flex-col">
+    <motion.article layout="position" variants={staggerItem} whileHover={lift.hover} transition={lift.transition} data-glow className="rounded-panel border border-line bg-panel p-5 flex flex-col">
       <div className="flex items-start gap-4">
-        <Ring value={goal.pct} size={76} stroke={7} color={color} label={`${Math.round(goal.pct * 100)}% funded`}>
-          <span className="num text-sm">{Math.round(goal.pct * 100)}%</span>
-        </Ring>
+        <motion.div
+          className="relative shrink-0"
+          animate={celebrate ? { scale: [1, 1.14, 1] } : { scale: 1 }}
+          transition={{ duration: 0.55, delay: 0.3, ease: 'easeOut' }}
+        >
+          <Ring value={goal.pct} size={76} stroke={7} color={color} label={`${Math.round(goal.pct * 100)}% funded`}>
+            <span className="num text-sm">{Math.round(goal.pct * 100)}%</span>
+          </Ring>
+          {celebrate && <Burst />}
+        </motion.div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-base text-fg truncate">{goal.name}</h3>
@@ -112,7 +122,7 @@ export default function GoalsTab({ data, currency }) {
   const pct = data.total_target ? data.total_saved / data.total_target : 0
   return (
     <>
-      <motion.div variants={staggerItem} className="flex flex-wrap items-end justify-between gap-4 rounded-panel border border-line bg-panel p-5 md:p-6 mb-4">
+      <motion.div variants={staggerItem} data-glow className="flex flex-wrap items-end justify-between gap-4 rounded-panel border border-line bg-panel p-5 md:p-6 mb-4">
         <div>
           <p className="text-sm text-muted">Saved across goals</p>
           <p className="serif text-[52px] leading-none mt-2"><RollingNumber value={formatMoney(data.total_saved, currency, { decimals: 0 })} /></p>

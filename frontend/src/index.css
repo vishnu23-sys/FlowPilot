@@ -53,6 +53,25 @@
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.6) 45%, transparent 100%);
     mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.6) 45%, transparent 100%);
   }
+
+  /* Cursor glow: a lit border ring and a faint wash that follow --mx/--my (set by usePointerEffects). */
+  [data-glow] {
+    position: relative;
+    background-image: radial-gradient(440px circle at var(--mx, -999px) var(--my, -999px), rgb(var(--accent) / 0.045), transparent 55%);
+  }
+  [data-glow]::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: radial-gradient(240px circle at var(--mx, -999px) var(--my, -999px), rgb(var(--accent) / 0.75), transparent 62%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
 }
 
 /* Theme switch: circular reveal from the toggle (View Transitions API). */

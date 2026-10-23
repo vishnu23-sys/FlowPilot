@@ -3,7 +3,7 @@ import * as RMenu from '@radix-ui/react-dropdown-menu'
 import * as RCheckbox from '@radix-ui/react-checkbox'
 import * as RSwitch from '@radix-ui/react-switch'
 import * as RSlider from '@radix-ui/react-slider'
-import { Check, Minus } from 'lucide-react'
+import { motion } from 'motion/react'
 
 export const TooltipProvider = ({ children }) => (
   <RTooltip.Provider delayDuration={350} skipDelayDuration={150}>{children}</RTooltip.Provider>
@@ -85,8 +85,21 @@ export function Checkbox({ checked, onCheckedChange, label, className = '', ...p
         data-[state=indeterminate]:bg-accent data-[state=indeterminate]:border-accent transition-colors ${className}`}
       {...props}
     >
-      <RCheckbox.Indicator className="text-on-accent">
-        {checked === 'indeterminate' ? <Minus size={11} strokeWidth={3} /> : <Check size={11} strokeWidth={3} />}
+      <RCheckbox.Indicator forceMount className="text-on-accent">
+        {/* The tick draws itself on check and rubs out on uncheck. */}
+        <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+          <motion.path
+            d={checked === 'indeterminate' ? 'M3 6h6' : 'M2.4 6.4 5 8.9 9.7 3.3'}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={false}
+            animate={{ pathLength: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
+            transition={{ pathLength: { duration: 0.26, ease: [0.2, 0.9, 0.3, 1] }, opacity: { duration: 0.1 } }}
+          />
+        </svg>
       </RCheckbox.Indicator>
     </RCheckbox.Root>
   )
@@ -101,7 +114,8 @@ export function Switch({ checked, onCheckedChange, label, id }) {
       aria-label={label}
       className="relative h-5 w-9 shrink-0 rounded-full bg-fg/15 transition-colors data-[state=checked]:bg-accent"
     >
-      <RSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-panel shadow transition-transform duration-200 ease-out data-[state=checked]:translate-x-[18px]" />
+      <RSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-panel shadow transition-transform duration-300
+        ease-[cubic-bezier(.3,1.7,.5,1)] data-[state=checked]:translate-x-[18px] motion-reduce:transition-none" />
     </RSwitch.Root>
   )
 }

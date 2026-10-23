@@ -1,13 +1,15 @@
+import { forwardRef } from 'react'
 import * as RDialog from '@radix-ui/react-dialog'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useDragControls } from 'motion/react'
 import { X } from 'lucide-react'
 import Button from './Button'
 import { dur, ease, spring } from '../../lib/motion'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 
-function Backdrop() {
+// forwardRef because Radix's Portal attaches a ref to each child it portals.
+const Backdrop = forwardRef(function Backdrop(_, ref) {
   return (
-    <RDialog.Overlay asChild forceMount>
+    <RDialog.Overlay asChild forceMount ref={ref}>
       <motion.div
         className="fixed inset-0 z-40 bg-black/50"
         initial={{ opacity: 0 }}
@@ -17,7 +19,7 @@ function Backdrop() {
       />
     </RDialog.Overlay>
   )
-}
+})
 
 /**
  * Side sheet on desktop, bottom sheet on mobile. Radix handles focus trap, Esc and aria;
@@ -25,6 +27,8 @@ function Backdrop() {
  */
 export function Sheet({ open, onOpenChange, title, description, children, footer, width = 468 }) {
   const mobile = useMediaQuery('(max-width: 639px)')
+  // On phones the sheet can be dragged down by its handle (or header) to close.
+  const drag = useDragControls()
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       <AnimatePresence>
@@ -42,9 +46,20 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
                 animate={mobile ? { y: 0 } : { x: 0 }}
                 exit={mobile ? { y: '100%' } : { x: '100%' }}
                 transition={spring.soft}
+                drag={mobile ? 'y' : false}
+                dragListener={false}
+                dragControls={drag}
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={{ top: 0.05, bottom: 0.8 }}
+                onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 600) onOpenChange(false) }}
               >
-                {mobile && <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-line-strong" aria-hidden="true" />}
-                <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3">
+                {mobile && (
+                  <div className="flex justify-center pt-2 pb-1 touch-none cursor-grab" onPointerDown={(e) => drag.start(e)} aria-hidden="true">
+                    <div className="h-1 w-10 rounded-full bg-line-strong" />
+                  </div>
+                )}
+                <div className={`flex items-start justify-between gap-4 px-5 pt-5 pb-3 ${mobile ? 'touch-none' : ''}`}
+                  onPointerDown={mobile ? (e) => { if (!e.target.closest('button')) drag.start(e) } : undefined}>
                   <div className="min-w-0">
                     <RDialog.Title className="text-base font-medium text-fg">{title}</RDialog.Title>
                     {description ? (

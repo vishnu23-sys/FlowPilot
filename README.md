@@ -34,6 +34,13 @@ FlowPilot is a full-stack personal finance app. It tracks spending and income, k
 - **Look.** Serif headline figures (Instrument Serif) over a quiet UI in Geist and Geist Mono. Colour comes from the data: each category has a fixed colour across pills and charts. The interface itself uses neutrals plus one accent.
 - **Themes.** Dark and paper-light themes built from one set of CSS variable tokens. Switching theme plays a circular reveal from the toggle.
 - **Motion.** Page transitions follow the direction of travel through the sidebar. Toggles have sliding indicators. Shared-element morphs take an expense row into its edit sheet and a subscription card into its detail view. Numbers roll digit by digit, and charts tween between ranges. Everything falls back to simple fades when reduced motion is on.
+- **Alive details.**
+  - Panels catch a soft glow that follows the cursor, and the background dots brighten around it. The landing preview tilts toward the mouse.
+  - Buttons press with a spring and clickable cards lift on hover. Checkboxes draw their tick, and switches bounce.
+  - Swipe an expense left to delete it, drag a sheet down to close it on phones, and swipe through insights.
+  - Page titles tuck into the top bar as you scroll. Charts draw in when they come into view, and expense rows glide to their new place when you re-sort.
+  - New expenses flash where they land, a fully funded goal bursts, an over-budget bar shakes, and the bell wiggles when something new needs attention.
+  - Cursor effects only run with a mouse.
 - **Keyboard.** `Ctrl K` opens the command palette (pages, actions, expense search). `N` adds an expense from anywhere, `Ctrl B` collapses the sidebar to icons, `G` then a letter jumps to a section, and `?` lists every shortcut.
 
 ---
@@ -45,7 +52,7 @@ FlowPilot is a full-stack personal finance app. It tracks spending and income, k
 |---|---|
 | React 18 + Vite 5 | UI and build |
 | Tailwind CSS 3 | Styling, mapped to CSS-variable design tokens |
-| Framer Motion | Page, layout and shared-element animation |
+| Motion (motion.dev) | Page, layout, gesture, scroll-linked and shared-element animation |
 | TanStack Query | Server state, caching, invalidation, optimistic deletes |
 | Radix UI primitives | Accessible dialog, menu, popover, tooltip, checkbox, switch, slider |
 | cmdk | Command palette |

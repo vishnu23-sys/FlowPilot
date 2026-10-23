@@ -10,6 +10,7 @@ import { ErrorState } from '../../components/ui/States'
 import { axisProps, gridProps, makeTooltip, AreaGradient, chartAnimation } from '../../components/charts/chartTheme'
 import { usePredictions, useSubscriptions } from '../../api/queries'
 import { currencySymbol, formatCompact, formatMoney } from '../../lib/format'
+import Reveal from '../../components/charts/Reveal'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -84,7 +85,7 @@ export default function SimulatorTab({ currency }) {
               {p.monthly_income === 0 && (
                 <p className="text-sm text-warning mt-3">Projections assume no income. <Link to="/income" className="underline underline-offset-2">Log income</Link> for a real picture.</p>
               )}
-              <div className="h-[260px] mt-4 -ml-2">
+              <Reveal className="h-[260px] mt-4 -ml-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={p.savings_projection} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                     <defs><AreaGradient id="sim-fill" color="rgb(var(--accent))" /></defs>
@@ -96,7 +97,7 @@ export default function SimulatorTab({ currency }) {
                     <Area type="monotone" dataKey="savings" stroke="rgb(var(--accent))" fill="url(#sim-fill)" strokeWidth={2} {...chartAnimation} />
                   </AreaChart>
                 </ResponsiveContainer>
-              </div>
+              </Reveal>
             </Panel>
             {p.debt_payoff && (
               <Panel title="Paying off what you owe">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { ResponsiveContainer, BarChart, Bar, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
@@ -15,6 +15,7 @@ import { CATEGORIES, categoryColor } from '../lib/categories'
 import { formatCompact, formatMoney, formatPercent } from '../lib/format'
 import { usePageEntrance } from '../lib/entrance'
 import { spring, staggerItem } from '../lib/motion'
+import Reveal from '../components/charts/Reveal'
 
 const RANGES = [
   { value: 'weekly', label: 'Week', period: 'day', previous: 'the week before' },
@@ -39,7 +40,7 @@ function Hero({ data, range, currency }) {
   const t = data.totals
   const meta = RANGES.find((r) => r.value === range)
   return (
-    <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+    <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
       <div className="p-5 md:p-6">
         <p className="text-sm text-muted">Spent</p>
         <p className="serif text-[52px] leading-none mt-2"><RollingNumber value={formatMoney(t.current, currency, { decimals: 0 })} /></p>
@@ -67,7 +68,7 @@ function StackedTrend({ data, currency }) {
   const Tip = useMemo(() => makeTooltip({ format: (v) => formatMoney(v, currency) }), [currency])
   return (
     <Panel className="lg:col-span-2" title="Spending by category over time">
-      <div className="h-[280px] -ml-2">
+      <Reveal className="h-[280px] -ml-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid {...gridProps} />
@@ -80,7 +81,7 @@ function StackedTrend({ data, currency }) {
             ))}
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </Reveal>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-xs text-muted">
         {cats.map((c) => (
           <span key={c} className="flex items-center gap-1.5">
@@ -139,7 +140,7 @@ function Savings({ data, currency }) {
   }
   return (
     <Panel className="lg:col-span-3" title="Income against spending">
-      <div className="h-[260px] -ml-2">
+      <Reveal className="h-[260px] -ml-2">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data.savings_trend} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <defs><AreaGradient id="kept-fill" color="rgb(var(--success))" from={0.2} /></defs>
@@ -152,7 +153,7 @@ function Savings({ data, currency }) {
             <Line type="monotone" dataKey="expenses" stroke="rgb(var(--fg) / 0.5)" strokeWidth={2} strokeDasharray="4 4" dot={false} {...chartAnimation} />
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
+      </Reveal>
       <div className="flex gap-4 mt-2 text-xs text-muted">
         <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-accent" aria-hidden="true" />Income</span>
         <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 border-t-2 border-dashed border-fg/50" aria-hidden="true" />Spending</span>

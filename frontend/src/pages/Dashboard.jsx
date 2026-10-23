@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import PageHeader from '../components/ui/PageHeader'
 import { ErrorState } from '../components/ui/States'
 import HeroStrip from '../features/dashboard/HeroStrip'

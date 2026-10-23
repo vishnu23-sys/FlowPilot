@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import Contours from '../components/brand/Contours'
 import ProductPreview from '../components/brand/ProductPreview'
 import Logo from '../components/shell/Logo'
@@ -8,6 +8,7 @@ import { Kbd } from '../components/ui/Controls'
 import { ProgressBar, Ring } from '../components/ui/Progress'
 import { Monogram } from '../components/ui/Pill'
 import { ease } from '../lib/motion'
+import { usePointerEffects } from '../lib/interactions'
 
 const rise = (delay) => ({
   initial: { opacity: 0, y: 18 },
@@ -66,6 +67,7 @@ const FEATURES = [
 ]
 
 export default function Landing() {
+  usePointerEffects()
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <Contours />
@@ -105,7 +107,7 @@ export default function Landing() {
                 <motion.article key={f.title}
                   initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-80px' }}
                   transition={{ duration: 0.5, ease }}
-                  className="flex flex-col rounded-panel border border-line bg-panel p-6">
+                  data-glow className="flex flex-col rounded-panel border border-line bg-panel p-6">
                   <div className="min-h-[150px]">{f.demo}</div>
                   <h3 className="mt-6 text-base text-fg">{f.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted">{f.body}</p>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
 import { Plus, ChevronLeft, ChevronRight, Pencil, Pause, Play, X, Repeat, CalendarDays } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
@@ -20,6 +20,7 @@ import { daysBetween, formatMoney, formatRelativeDays, formatShortDate, parseISO
 import { usePageEntrance } from '../lib/entrance'
 import { useSheets } from '../lib/sheets'
 import { dur, ease, spring, staggerItem, tabContentVariants } from '../lib/motion'
+import { lift } from '../lib/interactions'
 
 function urgency(iso) {
   const d = daysBetween(todayISO(), iso)
@@ -32,7 +33,7 @@ function Hero({ subs, currency }) {
   const active = subs.filter((s) => s.is_active)
   const monthly = active.reduce((sum, s) => sum + monthlyCost(s), 0)
   return (
-    <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
+    <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-4">
       <div className="p-5 md:p-6">
         <p className="text-sm text-muted">Every month</p>
         <p className="serif text-[48px] leading-none mt-2"><RollingNumber value={formatMoney(monthly, currency, { decimals: 0 })} /></p>
@@ -165,7 +166,9 @@ function SubCard({ sub, currency, onOpen }) {
       type="button"
       onClick={() => onOpen(sub)}
       transition={spring.soft}
-      className={`group text-left rounded-panel border border-line bg-panel p-4 hover:border-line-strong transition-colors ${sub.is_active ? '' : 'opacity-60'}`}
+      whileHover={lift.hover}
+      whileTap={lift.tap}
+      data-glow className={`group text-left rounded-panel border border-line bg-panel p-4 hover:border-line-strong transition-colors ${sub.is_active ? '' : 'opacity-60'}`}
     >
       <motion.div layout="position" className="flex items-start justify-between">
         <Monogram name={sub.name} size={38} />

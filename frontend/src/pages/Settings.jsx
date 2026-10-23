@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
 import { Check, X, Sun, Moon, Monitor, Keyboard, LogOut } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'

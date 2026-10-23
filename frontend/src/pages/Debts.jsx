@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import toast from 'react-hot-toast'
-import { Plus, ChevronDown, HandCoins } from 'lucide-react'
+import { Plus, ChevronDown, HandCoins, CheckCircle2 } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import Panel from '../components/ui/Panel'
 import Button from '../components/ui/Button'
@@ -50,7 +50,21 @@ function DebtLine({ debt, currency }) {
           </span>
           <span className="block text-xs text-faint mt-0.5">{formatShortDate(debt.created_at.slice(0, 10))}</span>
         </span>
-        <span className={`num text-sm transition-colors ${settled ? 'text-muted line-through decoration-muted/60' : 'text-fg'}`}>
+        <span className={`inline-flex items-center gap-1.5 num text-sm transition-colors duration-300 ${settled ? 'text-success' : 'text-fg'}`}>
+          <AnimatePresence initial={false}>
+            {settled && (
+              <motion.span
+                key="tick"
+                initial={{ scale: 0, rotate: -30, opacity: 0 }}
+                animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 520, damping: 18, delay: 0.25 }}
+                className="grid place-items-center"
+              >
+                <CheckCircle2 size={14} aria-label="Settled" />
+              </motion.span>
+            )}
+          </AnimatePresence>
           {formatMoney(debt.amount, currency)}
         </span>
       </button>
@@ -61,7 +75,7 @@ function DebtLine({ debt, currency }) {
 function PersonCard({ person, debts, currency }) {
   const total = debts.filter((d) => !d.is_settled).reduce((s, d) => s + d.amount, 0)
   return (
-    <motion.div layout="position" variants={staggerItem} className="rounded-panel border border-line bg-panel p-4">
+    <motion.div layout="position" variants={staggerItem} data-glow className="rounded-panel border border-line bg-panel p-4">
       <div className="flex items-center gap-3 pb-2 border-b border-line">
         <span className="grid h-9 w-9 place-items-center rounded-full bg-fg/[0.07] text-xs font-semibold">{initials(person)}</span>
         <span className="flex-1 text-sm text-fg">{person}</span>
@@ -120,7 +134,7 @@ export default function Debts() {
           </Panel>
         ) : (
           <>
-            <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-6">
+            <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel divide-y sm:divide-y-0 sm:divide-x divide-line mb-6">
               <div className="p-5 md:p-6">
                 <p className="text-sm text-muted">{net >= 0 ? "You're owed, net" : 'You owe, net'}</p>
                 <p className={`serif text-[48px] leading-none mt-2 ${net >= 0 ? 'text-success' : 'text-danger'}`}>

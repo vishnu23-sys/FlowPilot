@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, X, ListFilter, ArrowUpDown, CalendarDays, Trash2, Receipt, Check } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
@@ -116,7 +116,7 @@ function BulkBar({ count, onClear, onDelete }) {
   )
 }
 
-function ExpenseList({ expenses, filters, currency, selected, setSelected }) {
+function ExpenseList({ expenses, filters, currency, selected, setSelected, onSwipeDelete }) {
   const [limit, setLimit] = useState(PAGE)
   const sentinel = useRef(null)
   const filtered = useMemo(() => sortExpenses(filterExpenses(expenses, filters), filters.sort), [expenses, filters])
@@ -170,37 +170,46 @@ function ExpenseList({ expenses, filters, currency, selected, setSelected }) {
       </motion.div>
 
       <Panel flush bodyClassName="overflow-clip rounded-panel">
-        {groups.map((g) => (
-          <section key={g.date || 'all'} aria-label={g.date ? formatDayLabel(g.date) : 'Expenses'}>
-            {g.date && (
-              <div className="sticky top-[52px] z-[1] flex items-center justify-between border-b border-line bg-raised/90 backdrop-blur px-4 py-2 text-xs">
+        {/* One flat list (day headers + rows) so a row keeps its identity across sorts and glides to its new place. */}
+        <AnimatePresence initial={false}>
+          {groups.flatMap((g) => [
+            g.date && (
+              <motion.div
+                key={`day-${g.date}`}
+                layout="position"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: dur.base, ease }}
+                className="sticky top-[52px] z-[2] flex items-center justify-between border-b border-line bg-raised px-4 py-2 text-xs"
+              >
                 <span className="text-fg font-medium">{formatDayLabel(g.date)}</span>
                 <span className="num text-muted">{formatMoney(g.total, currency)}</span>
-              </div>
-            )}
-            <AnimatePresence initial={false}>
-              {g.items.map((e) => (
-                <motion.div
-                  key={e.id}
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: dur.base, ease }}
-                  className="border-b border-line last:border-b-0 overflow-hidden"
-                >
-                  <ExpenseRow
-                    expense={e}
-                    currency={currency}
-                    meta={[byDate ? null : formatDayLabel(e.date), e.payment_method].filter(Boolean).join(', ')}
-                    selectable
-                    selected={selected.has(e.id)}
-                    onSelect={(on) => toggle(e.id, on)}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </section>
-        ))}
+              </motion.div>
+            ),
+            ...g.items.map((e) => (
+              <motion.div
+                key={e.id}
+                layout="position"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: dur.base, ease, layout: { type: 'spring', stiffness: 340, damping: 34 } }}
+                className="border-b border-line last:border-b-0 overflow-hidden"
+              >
+                <ExpenseRow
+                  expense={e}
+                  currency={currency}
+                  meta={[byDate ? null : formatDayLabel(e.date), e.payment_method].filter(Boolean).join(', ')}
+                  selectable
+                  selected={selected.has(e.id)}
+                  onSelect={(on) => toggle(e.id, on)}
+                  onSwipeDelete={onSwipeDelete}
+                />
+              </motion.div>
+            )),
+          ].filter(Boolean))}
+        </AnimatePresence>
       </Panel>
       {visible.length < filtered.length && (
         <div ref={sentinel} className="py-6 text-center">
@@ -311,7 +320,8 @@ export default function Expenses() {
             />
           </Panel>
         ) : (
-          <ExpenseList expenses={expenses} filters={filters} currency={currency} selected={selected} setSelected={setSelected} />
+          <ExpenseList expenses={expenses} filters={filters} currency={currency} selected={selected} setSelected={setSelected}
+            onSwipeDelete={(e) => deleteWithUndo({ qc, queryKey: keys.expenses, ids: [e.id], message: 'Expense deleted', url: `/api/expenses/${e.id}` })} />
         )}
       </QueryView>
 

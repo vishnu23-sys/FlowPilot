@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { category, categoryColor, incomeSource, sourceColor } from '../../lib/categories'
 
 /** Category tag: tinted background, category-coloured text. Optional layoutId for morphs. */

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { PanelLeftClose, PanelLeftOpen, LogOut, Settings, Keyboard, Sun, Moon, Monitor, ChevronsUpDown } from 'lucide-react'
 import { NAV, SETTINGS_NAV } from './nav'
 import { Tooltip, Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, MenuLabel } from '../ui/Controls'

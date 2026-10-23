@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { spring } from '../../lib/motion'
 
 /** Horizontal bar that springs to its value. `value` is 0..1 (overflow shown as full + tone). */

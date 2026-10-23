@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { Trash2 } from 'lucide-react'
@@ -16,6 +16,7 @@ import { PAYMENT_METHODS } from '../../lib/categories'
 import { currencySymbol, formatMoney, todayISO } from '../../lib/format'
 import { deleteWithUndo } from '../../lib/undo'
 import { spring } from '../../lib/motion'
+import { freshExpenses } from '../../lib/interactions'
 
 const blank = () => ({ amount: '', category: 'Food', date: todayISO(), description: '', payment_method: 'UPI', is_recurring: false })
 
@@ -59,7 +60,8 @@ export default function ExpenseSheet({ open, expense, onClose }) {
       return
     }
     save.mutate({ ...form, amount: Number(form.amount), description: form.description.trim() }, {
-      onSuccess: () => {
+      onSuccess: ({ data }) => {
+        if (!editing) freshExpenses.mark(data.expense.id)
         toast.success(editing ? 'Changes saved' : `Added ${formatMoney(form.amount, currency)} to ${form.category}`)
         if (!editing && addAnother) {
           setForm((f) => ({ ...blank(), category: f.category, date: f.date, payment_method: f.payment_method }))

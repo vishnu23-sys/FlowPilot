@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import RollingNumber from '../../components/ui/RollingNumber'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -58,7 +58,7 @@ export default function HeroStrip({ summary, income, health, currency, loading }
   const left = income != null ? income - spent : null
 
   return (
-    <motion.div variants={staggerItem} className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel overflow-hidden mb-4 divide-y sm:divide-y-0 sm:divide-x divide-line">
+    <motion.div variants={staggerItem} data-glow className="grid sm:grid-cols-3 rounded-panel border border-line bg-panel overflow-hidden mb-4 divide-y sm:divide-y-0 sm:divide-x divide-line">
       <Figure label="Spent this month" to="/analytics" foot={<Delta current={spent} previous={prevAtSameDay} />}>
         <RollingNumber value={formatMoney(spent, currency, { decimals: 0 })} />
       </Figure>

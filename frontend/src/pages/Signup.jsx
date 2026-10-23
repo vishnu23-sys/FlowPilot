@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import apiClient, { errorMessage } from '../api/apiClient'

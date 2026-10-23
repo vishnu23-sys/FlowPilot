@@ -1,4 +1,6 @@
 import { forwardRef } from 'react'
+import { motion } from 'motion/react'
+import { press } from '../../lib/interactions'
 import { Loader2 } from 'lucide-react'
 
 const variants = {
@@ -18,10 +20,10 @@ const sizes = {
 }
 
 /** Classes for anything that should look like a button (e.g. a router Link). */
-export function buttonClasses({ variant = 'secondary', size = 'md', className = '' } = {}) {
-  return `inline-flex items-center rounded-control whitespace-nowrap select-none
-    transition-[background-color,border-color,color,filter,transform] duration-150 ease-out
-    active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none
+export function buttonClasses({ variant = 'secondary', size = 'md', className = '', motion: springPress = false } = {}) {
+  return `inline-flex items-center rounded-control whitespace-nowrap select-none duration-150 ease-out
+    ${springPress ? 'transition-[background-color,border-color,color,filter]' : 'transition-[background-color,border-color,color,filter,transform] active:scale-[0.97]'}
+    disabled:opacity-50 disabled:pointer-events-none
     ${variants[variant]} ${sizes[size]} ${className}`
 }
 
@@ -30,16 +32,18 @@ const Button = forwardRef(function Button(
   ref,
 ) {
   return (
-    <button
+    <motion.button
       ref={ref}
       type={type}
       disabled={disabled || loading}
-      className={buttonClasses({ variant, size, className })}
+      whileTap={disabled || loading ? undefined : press.tap}
+      transition={press.transition}
+      className={buttonClasses({ variant, size, className, motion: true })}
       {...props}
     >
       {loading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
       {children}
-    </button>
+    </motion.button>
   )
 })
 

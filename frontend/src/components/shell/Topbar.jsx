@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import * as Popover from '@radix-ui/react-popover'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useAnimate, useScroll, useTransform } from 'motion/react'
+import { TITLE_TUCK, usePageTitle, useOnChange, wiggleKeyframes } from '../../lib/interactions'
 import { Bell, Menu as MenuIcon, Plus, Search, Sun, Moon, ChevronRight, CircleAlert, TriangleAlert, Info } from 'lucide-react'
 import Button from '../ui/Button'
 import { Kbd, Tooltip } from '../ui/Controls'
@@ -82,6 +83,12 @@ function AttentionBell() {
   const { data } = useAttention()
   const navigate = useNavigate()
   const count = data?.count || 0
+  const { reduceMotion } = usePreferences()
+  const [bellScope, animateBell] = useAnimate()
+  // Wiggle when new items arrive after the first load.
+  useOnChange(data?.count ?? null, (was, now) => {
+    if (was != null && now > was && !reduceMotion && bellScope.current) animateBell(bellScope.current, wiggleKeyframes, { duration: 0.6 })
+  })
   const urgent = data?.items?.some((i) => i.severity === 'danger')
   return (
     <Popover.Root>
@@ -92,11 +99,13 @@ function AttentionBell() {
             aria-label={`Needs attention${count ? `, ${count} items` : ''}`}
             className="relative grid h-8 w-8 place-items-center rounded-control text-muted hover:text-fg hover:bg-fg/[0.06] transition-colors data-[state=open]:bg-fg/[0.06] data-[state=open]:text-fg"
           >
-            <Bell size={16} strokeWidth={1.8} />
+            <span ref={bellScope} className="grid place-items-center origin-top"><Bell size={16} strokeWidth={1.8} /></span>
             <AnimatePresence>
               {count > 0 && (
                 <motion.span
-                  initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                  key={count}
+                  initial={{ scale: 0 }} animate={{ scale: [0, 1.25, 1] }} exit={{ scale: 0 }}
+                  transition={{ duration: 0.35 }}
                   className={`absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold num
                     ${urgent ? 'bg-danger text-canvas' : 'bg-accent text-on-accent'}`}
                 >
@@ -134,6 +143,11 @@ export default function Topbar({ onOpenPalette, onOpenDrawer }) {
   const { openSheet } = useSheets()
   const item = navItem(pathname)
   const Icon = item.icon
+  const pageTitle = usePageTitle()
+  const { scrollY } = useScroll()
+  const crumbOpacity = useTransform(scrollY, [TITLE_TUCK[1] * 0.55, TITLE_TUCK[1]], [1, 0])
+  const titleOpacity = useTransform(scrollY, [TITLE_TUCK[1] * 0.55, TITLE_TUCK[1]], [0, 1])
+  const titleY = useTransform(scrollY, [TITLE_TUCK[1] * 0.55, TITLE_TUCK[1]], [8, 0])
 
   return (
     <header className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-2 border-b border-line bg-canvas/80 backdrop-blur-md px-3 md:px-5">
@@ -141,21 +155,35 @@ export default function Topbar({ onOpenPalette, onOpenDrawer }) {
         <MenuIcon size={18} />
       </Button>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+      <nav aria-label="Breadcrumb" className="relative flex min-w-0 items-center gap-2 text-sm">
         <Icon size={15} strokeWidth={1.8} className="text-muted shrink-0" aria-hidden="true" />
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={item.to}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: dur.base, ease }}
-            className="text-fg truncate"
-          >
-            {item.label}
-          </motion.span>
-        </AnimatePresence>
-        {item.to === '/dashboard' && <span className="hidden sm:inline text-muted">/ {monthName()}</span>}
+        <div className="relative min-w-0">
+          <motion.div style={{ opacity: crumbOpacity }} className="flex min-w-0 items-center gap-2">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={item.to}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: dur.base, ease }}
+                className="text-fg truncate"
+              >
+                {item.label}
+              </motion.span>
+            </AnimatePresence>
+            {item.to === '/dashboard' && <span className="hidden sm:inline text-muted">/ {monthName()}</span>}
+          </motion.div>
+          {/* The page's big serif title lands here once it has scrolled away. */}
+          {pageTitle && (
+            <motion.span
+              aria-hidden="true"
+              style={{ opacity: titleOpacity, y: titleY }}
+              className="pointer-events-none absolute left-0 top-1/2 -mt-[11px] serif text-[22px] leading-[22px] text-fg whitespace-nowrap"
+            >
+              {pageTitle}
+            </motion.span>
+          )}
+        </div>
       </nav>
 
       <div className="flex-1" />

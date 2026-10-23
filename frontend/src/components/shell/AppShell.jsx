@@ -1,12 +1,13 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useOutlet } from 'react-router-dom'
 import * as RDialog from '@radix-ui/react-dialog'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import Sidebar, { SidebarBody } from './Sidebar'
 import Topbar from './Topbar'
 import CommandPalette from './CommandPalette'
 import ShortcutsDialog from './ShortcutsDialog'
 import ErrorBoundary from './ErrorBoundary'
+import LivingDots from './LivingDots'
 import SheetHost from '../../features/SheetHost'
 import { ALL_NAV, navIndex, navItem } from './nav'
 import { PageSkeleton } from '../ui/Skeleton'
@@ -14,6 +15,7 @@ import { usePreferences } from '../../lib/preferences'
 import { useHotkeys } from '../../lib/hotkeys'
 import { useSheets } from '../../lib/sheets'
 import { useMediaQuery } from '../../lib/useMediaQuery'
+import { usePointerEffects } from '../../lib/interactions'
 import { pageVariants, spring } from '../../lib/motion'
 
 /** Direction of travel through the sidebar order: +1 moving down, -1 moving up. */
@@ -89,6 +91,7 @@ export default function AppShell() {
   const navigate = useNavigate()
   const { sheet, openSheet } = useSheets()
   const mobile = useMediaQuery('(max-width: 767px)')
+  usePointerEffects()
   const tablet = useMediaQuery('(max-width: 1023px)')
 
   // Tablets start as a rail; the choice made there lasts for the session only.
@@ -125,6 +128,7 @@ export default function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onOpenPalette={() => setPaletteOpen(true)} onOpenDrawer={() => setDrawerOpen(true)} />
         <main id="main" className="canvas-dots flex-1">
+          <LivingDots />
           <div className="mx-auto w-full max-w-[1240px] px-4 py-6 md:px-8 md:py-8">
             <AnimatedOutlet />
           </div>
